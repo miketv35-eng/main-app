@@ -1057,12 +1057,12 @@ function ShiftWorkspace({ shift, onBack, areas, setAreas, lines, machineStatus, 
   const [showHelp, setShowHelp] = useState(false);
   const settingsTabs = [{ id: "operators", l: "👷 Operators" }, { id: "skap", l: "📋 SKAP" }, { id: "training", l: "📊 Training" }, { id: "holidays", l: "🏖️ Holidays" }];
 
-  if (!loaded) return <div style={{ fontFamily: "'Satoshi','Roboto',sans-serif", background: "#FFFFFF", color: "#09090B", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>Loading {shift.name}...</div>;
+  if (!loaded) return <div style={{ fontFamily: "'Satoshi','Roboto',sans-serif", background: "var(--bg-body)", color: "var(--text-primary)", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>Loading {shift.name}...</div>;
 
   return (
-    <div style={{ fontFamily: "'Satoshi','Roboto',sans-serif", background: "#FFFFFF", color: "#09090B", minHeight: "100vh" }}>
+    <div style={{ fontFamily: "'Satoshi','Roboto',sans-serif", background: "var(--bg-body)", color: "var(--text-primary)", minHeight: "100vh" }}>
       <link href="https://api.fontshare.com/v2/css?f[]=satoshi@900,700,500,301,701,300,501,401,901,400&display=swap" rel="stylesheet" />
-      <header style={{ background: "#FFFFFF", borderBottom: `2px solid #E5B611`, padding: "10px 20px", display: "flex", flexDirection: isMobile ? "column" : "row", alignItems: "center", justifyContent: "space-between", position: "sticky", top: 0, zIndex: 50, gap: isMobile ? 10 : 0, boxShadow: "0 1px 2px 0 rgba(0, 0, 0, 0.05)" }}>
+      <header style={{ background: "var(--bg-body)", borderBottom: `2px solid #E5B611`, padding: "10px 20px", display: "flex", flexDirection: isMobile ? "column" : "row", alignItems: "center", justifyContent: "space-between", position: "sticky", top: 0, zIndex: 50, gap: isMobile ? 10 : 0, boxShadow: "0 1px 2px 0 rgba(0, 0, 0, 0.05)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12, width: isMobile ? "100%" : "auto", justifyContent: isMobile ? "space-between" : "flex-start" }}>
           <button onClick={onBack} style={{ ...S.bg, padding: "6px 10px", border: "none" }}><Ic.Back /></button>
           <div style={{ width: 34, height: 34, background: `${team.color}22`, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 16, color: team.color }}>{shift.icon}</div>
@@ -2002,7 +2002,7 @@ function StaffingView({ staffingPlan, shiftId, team }) {
         : <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
             <thead><tr style={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
-              <th style={{ textAlign: "left", padding: "6px 8px", fontWeight: 700, fontSize: 10, color: "#64748B", textTransform: "uppercase", position: "sticky", left: 0, background: "#0F1219", zIndex: 1, minWidth: 150 }}>Name</th>
+              <th style={{ textAlign: "left", padding: "6px 8px", fontWeight: 700, fontSize: 10, color: "#64748B", textTransform: "uppercase", position: "sticky", left: 0, background: "var(--bg-card)", zIndex: 1, minWidth: 150 }}>Name</th>
               {showPos && <th style={{ padding: "6px 4px", fontWeight: 700, fontSize: 9, color: "#64748B", textTransform: "uppercase", width: 40 }}>Pos</th>}
               {dates.map(d => { const dt = new Date(d + "T12:00:00"); const isTd = d === todayStr; return <th key={d} style={{ padding: "6px 4px", fontWeight: 700, fontSize: 9, color: isTd ? team.color : "#64748B", textTransform: "uppercase", textAlign: "center", minWidth: 52, background: isTd ? "rgba(255,255,255,0.02)" : "transparent" }}>{dayNames[dt.getDay()]}<br /><span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 8 }}>{d.slice(8)}</span></th> })}
             </tr></thead>
@@ -2011,7 +2011,7 @@ function StaffingView({ staffingPlan, shiftId, team }) {
                 const todaySt = op.days[todayStr];
                 const rowBg = isWorking(todaySt) ? "rgba(16,185,129,0.03)" : isUnavail(todaySt) ? "rgba(239,68,68,0.03)" : "transparent";
                 return <tr key={i} style={{ borderBottom: "1px solid rgba(255,255,255,0.03)", background: rowBg }}>
-                  <td style={{ padding: "5px 8px", fontWeight: 600, fontSize: 11, position: "sticky", left: 0, background: "#0F1219", zIndex: 1, borderRight: "1px solid rgba(255,255,255,0.04)" }}>{op.name}</td>
+                  <td style={{ padding: "5px 8px", fontWeight: 600, fontSize: 11, position: "sticky", left: 0, background: "var(--bg-card)", zIndex: 1, borderRight: "1px solid rgba(255,255,255,0.04)", color: "#F9FAFB" }}>{op.name || "(No Name)"}</td>
                   {showPos && <td style={{ padding: "5px 4px", textAlign: "center" }}><span style={{ fontSize: 9, fontWeight: 600, color: op.position === "MOP" ? "#F59E0B" : "#64748B" }}>{op.position || "—"}</span></td>}
                   {dates.map(d => {
                     const st = op.days[d];
