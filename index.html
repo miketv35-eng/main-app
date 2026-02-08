@@ -10,6 +10,34 @@
     rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
   <style>
+    :root {
+      --bg-body: #FFFFFF;
+      --bg-card: #FFFFFF;
+      --bg-input: #FFFFFF;
+      --bg-hover: #F4F4F5;
+      --text-primary: #09090B;
+      --text-secondary: #71717A;
+      --border-color: #E5E7EB;
+      --primary: #E5B611;
+      --primary-fg: #000000;
+      --danger: #EF4444;
+      --success: #10B981;
+    }
+
+    [data-theme='dark'] {
+      --bg-body: #0B0E14;
+      --bg-card: #1F2937;
+      --bg-input: #111827;
+      --bg-hover: #374151;
+      --text-primary: #F9FAFB;
+      --text-secondary: #9CA3AF;
+      --border-color: #374151;
+      --primary: #E5B611;
+      --primary-fg: #000000;
+      --danger: #F87171;
+      --success: #34D399;
+    }
+
     * {
       margin: 0;
       padding: 0;
@@ -17,7 +45,9 @@
     }
 
     body {
-      background: #FFFFFF;
+      background: var(--bg-body);
+      color: var(--text-primary);
+      transition: background 0.3s, color 0.3s;
     }
   </style>
 </head>

@@ -583,15 +583,16 @@ function genRota(ops, areas, lines, team, hols, weekStart, prevAssign, training,
    STYLES & ICONS
    ═══════════════════════════════════════════════════ */
 const S = {
-  card: { background: "#FFFFFF", border: "1px solid #E5E7EB", borderRadius: 12, padding: 20, boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)" },
-  bp: { background: "linear-gradient(135deg,#E5B611,#C39B0E)", color: "#000", border: "none", borderRadius: 8, padding: "12px 24px", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "'Satoshi', sans-serif", display: "flex", alignItems: "center", gap: 8 },
-  bg: { background: "#F4F4F5", color: "#18181B", border: "1px solid #E4E4E7", borderRadius: 8, padding: "10px 20px", fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: "'Satoshi', sans-serif", display: "flex", alignItems: "center", gap: 6 },
-  inp: { background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: 8, padding: "12px 16px", color: "#000000", fontFamily: "'Roboto', sans-serif", fontSize: 14, outline: "none", width: "100%", boxSizing: "border-box" },
-  lbl: { fontSize: 12, fontWeight: 700, color: "#71717A", marginBottom: 6, display: "block", textTransform: "uppercase", letterSpacing: "0.05em", fontFamily: "'Satoshi', sans-serif" },
-  chip: c => ({ display: "inline-flex", alignItems: "center", padding: "6px 14px", borderRadius: 20, fontSize: 11, fontWeight: 700, background: c ? `${c}22` : "#F4F4F5", color: c || "#52525B", border: `1px solid ${c ? `${c}44` : "#E4E4E7"}`, fontFamily: "'Satoshi', sans-serif" }),
+  card: { background: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: 12, padding: 20, boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)" },
+  bp: { background: "linear-gradient(135deg,var(--primary),#C39B0E)", color: "var(--primary-fg)", border: "none", borderRadius: 8, padding: "12px 24px", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "'Satoshi', sans-serif", display: "flex", alignItems: "center", gap: 8 },
+  bg: { background: "var(--bg-hover)", color: "var(--text-primary)", border: "1px solid var(--border-color)", borderRadius: 8, padding: "10px 20px", fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: "'Satoshi', sans-serif", display: "flex", alignItems: "center", gap: 6 },
+  inp: { background: "var(--bg-input)", border: "1px solid var(--border-color)", borderRadius: 8, padding: "12px 16px", color: "var(--text-primary)", fontFamily: "'Roboto', sans-serif", fontSize: 14, outline: "none", width: "100%", boxSizing: "border-box" },
+  lbl: { fontSize: 12, fontWeight: 700, color: "var(--text-secondary)", marginBottom: 6, display: "block", textTransform: "uppercase", letterSpacing: "0.05em", fontFamily: "'Satoshi', sans-serif" },
+  chip: c => ({ display: "inline-flex", alignItems: "center", padding: "6px 14px", borderRadius: 20, fontSize: 11, fontWeight: 700, background: c ? `${c}22` : "var(--bg-hover)", color: c || "var(--text-secondary)", border: `1px solid ${c ? `${c}44` : "var(--border-color)"}`, fontFamily: "'Satoshi', sans-serif" }),
 };
 const Ic = {
-  Sun: () => <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="5" /><line x1="12" y1="1" x2="12" y2="3" /><line x1="12" y1="21" x2="12" y2="23" /></svg>,
+  Sun: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="5" /><line x1="12" y1="1" x2="12" y2="3" /><line x1="12" y1="21" x2="12" y2="23" /><line x1="4.22" y1="4.22" x2="5.64" y2="5.64" /><line x1="18.36" y1="18.36" x2="19.78" y2="19.78" /><line x1="1" y1="12" x2="3" y2="12" /><line x1="21" y1="12" x2="23" y2="12" /><line x1="4.22" y1="19.78" x2="5.64" y2="18.36" /><line x1="18.36" y1="5.64" x2="19.78" y2="4.22" /></svg>,
+  Moon: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" /></svg>,
   Moon: () => <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" /></svg>,
   Plus: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>,
   Trash: () => <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>,
@@ -608,6 +609,12 @@ const Ic = {
    ═══════════════════════════════════════════════════ */
 export default function App() {
   const [activeShift, setActiveShift] = useState(null);
+  const [theme, setTheme] = useState(() => localStorage.getItem("theme") || "light");
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('theme', theme);
+  }, [theme]);
   const [loaded, setLoaded] = useState(false);
 
   // Shared state
@@ -642,19 +649,19 @@ export default function App() {
 
   if (!loaded) return <div style={{ fontFamily: "'DM Sans',sans-serif", background: "#0B0E14", color: "#E2E8F0", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}><div style={{ fontSize: 18, color: "#64748B" }}>Loading...</div></div>;
 
-  if (!activeShift) return <Landing shifts={SHIFTS} onSelect={setActiveShift} machineStatus={machineStatus} loadingData={loadingData} staffingPlan={staffingPlan} setStaffingPlan={setStaffingPlan} />;
+  if (!activeShift) return <Landing shifts={SHIFTS} onSelect={setActiveShift} machineStatus={machineStatus} loadingData={loadingData} staffingPlan={staffingPlan} setStaffingPlan={setStaffingPlan} theme={theme} setTheme={setTheme} />;
 
   return <ShiftWorkspace
     shift={activeShift}
     onBack={() => setActiveShift(null)}
-    {...{ areas, setAreas, lines, machineStatus, setMachineStatus, planProducts, setPlanProducts, loadingData, setLoadingData, staffingPlan, setStaffingPlan }}
+    {...{ areas, setAreas, lines, machineStatus, setMachineStatus, planProducts, setPlanProducts, loadingData, setLoadingData, staffingPlan, setStaffingPlan, theme, setTheme }}
   />;
 }
 
 /* ═══════════════════════════════════════════════════
    LANDING PAGE
    ═══════════════════════════════════════════════════ */
-function Landing({ shifts, onSelect, machineStatus, loadingData, staffingPlan, setStaffingPlan }) {
+function Landing({ shifts, onSelect, machineStatus, loadingData, staffingPlan, setStaffingPlan, theme, setTheme }) {
   const today = new Date();
   const runningToday = Object.values(machineStatus[fmt(today)] || {}).filter(v => v !== false).length;
   const todayLoads = loadingData.filter(r => r.date === fmt(today)).length;
@@ -770,8 +777,13 @@ function Landing({ shifts, onSelect, machineStatus, loadingData, staffingPlan, s
     e.target.value = "";
   };
   return (
-    <div style={{ fontFamily: "'Satoshi','Roboto',sans-serif", background: "#FFFFFF", color: "#09090B", minHeight: "100vh" }}>
+    <div style={{ fontFamily: "'Satoshi','Roboto',sans-serif", background: "var(--bg-body)", color: "var(--text-primary)", minHeight: "100vh", transition: "background 0.3s, color 0.3s" }}>
       <link href="https://api.fontshare.com/v2/css?f[]=satoshi@900,700,500,301,701,300,501,401,901,400&display=swap" rel="stylesheet" />
+      <div style={{ position: "absolute", top: 20, right: 20 }}>
+        <button onClick={() => setTheme(t => t === 'light' ? 'dark' : 'light')} style={{ ...S.bg, padding: 10, borderRadius: "50%" }}>
+          {theme === 'light' ? <Ic.Moon /> : <Ic.Sun />}
+        </button>
+      </div>
       <div style={{ maxWidth: 900, margin: "0 auto", padding: "60px 20px", textAlign: "center" }}>
         <div style={{ width: 64, height: 64, background: "linear-gradient(135deg,#E5B611,#C39B0E)", borderRadius: 16, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 24, color: "#000", margin: "0 auto 20px" }}>ML</div>
         <h1 style={{ fontSize: 28, fontWeight: 800, margin: "0 0 6px" }}><span style={{ color: "#E5B611" }}>Magor</span> Logistics Management System</h1>
@@ -972,7 +984,7 @@ function HelpModal({ onClose }) {
 }
 
 
-function ShiftWorkspace({ shift, onBack, areas, setAreas, lines, machineStatus, setMachineStatus, planProducts, setPlanProducts, loadingData, setLoadingData, staffingPlan, setStaffingPlan }) {
+function ShiftWorkspace({ shift, onBack, areas, setAreas, lines, machineStatus, setMachineStatus, planProducts, setPlanProducts, loadingData, setLoadingData, staffingPlan, setStaffingPlan, theme, setTheme }) {
   const [tab, setTab] = useState("rota");
   const [loaded, setLoaded] = useState(false);
 
@@ -1056,8 +1068,11 @@ function ShiftWorkspace({ shift, onBack, areas, setAreas, lines, machineStatus, 
           <div style={{ width: 34, height: 34, background: `${team.color}22`, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 16, color: team.color }}>{shift.icon}</div>
           <div>
             <div style={{ fontWeight: 800, fontSize: 16, color: team.color }}>{team.name}</div>
-            <div style={{ fontSize: 10, color: "#64748B" }}>FLM: {shift.flm} · {ops.length} operators</div>
+            <div style={{ fontSize: 10, color: "var(--text-secondary)" }}>FLM: {shift.flm} · {ops.length} operators</div>
           </div>
+          <button onClick={() => setTheme(t => t === 'light' ? 'dark' : 'light')} style={{ ...S.bg, padding: 8, marginLeft: 8, borderRadius: "50%", background: "transparent", border: "1px solid var(--border-color)" }}>
+            {theme === 'light' ? <Ic.Moon /> : <Ic.Sun />}
+          </button>
         </div>
         <div style={{ display: "flex", gap: 3, background: "rgba(255,255,255,0.04)", borderRadius: 10, padding: 3, overflowX: "auto", alignItems: "center", maxWidth: isMobile ? "100%" : "auto", width: isMobile ? "100%" : "auto" }}>
           {tabs.map(t => <button key={t.id} onClick={() => setTab(t.id)} style={{ padding: "6px 12px", borderRadius: 7, border: "none", background: tab === t.id ? `${team.color}22` : "transparent", color: tab === t.id ? team.color : "#94A3B8", cursor: "pointer", fontWeight: 600, fontSize: 12, fontFamily: "inherit", whiteSpace: "nowrap", flexShrink: 0 }}>{t.l}</button>)}
