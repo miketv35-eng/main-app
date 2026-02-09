@@ -1718,14 +1718,6 @@ function ShiftWorkspace({ shift, onBack, areas, setAreas, lines, machineStatus, 
     <div style={{ fontFamily: "'Satoshi','Roboto',sans-serif", background: "var(--bg-body)", color: "var(--text-primary)", minHeight: "100vh" }}>
       <link href="https://api.fontshare.com/v2/css?f[]=satoshi@900,700,500,301,701,300,501,401,901,400&display=swap" rel="stylesheet" />
 
-      {/* Onboarding Wizard */}
-      {showOnboarding && (
-        <OnboardingWizard
-          onComplete={completeOnboarding}
-          onSkip={skipOnboarding}
-        />
-      )}
-
       {/* Header */}
       <header style={{ background: "var(--bg-body)", borderBottom: `2px solid #E5B611`, padding: "10px 20px", display: "flex", flexDirection: isMobile ? "column" : "row", alignItems: "center", justifyContent: "space-between", position: "sticky", top: 0, zIndex: 50, gap: isMobile ? 10 : 0, boxShadow: "0 1px 2px 0 rgba(0, 0, 0, 0.05)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12, width: isMobile ? "100%" : "auto", justifyContent: isMobile ? "space-between" : "flex-start" }}>
