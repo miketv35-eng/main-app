@@ -156,3 +156,66 @@ export async function getAllPlans(startDate, endDate) {
     });
     return { statusMap, productsMap };
 }
+
+/**
+ * Save rotation history for an operator's weekly assignment.
+ */
+export async function saveRotationHistory(operatorId, weekDate, areaId, hoursWorked, shiftId) {
+    const { error } = await supabase
+        .from('rotation_history')
+        .upsert({
+            operator_id: operatorId,
+            week_date: weekDate,
+            area_id: areaId,
+            hours_worked: hoursWorked,
+            shift_id: shiftId
+        });
+    if (error) console.error('Error saving rotation history:', error);
+}
+
+/**
+ * Get rotation history for a specific operator.
+ * @param {string} operatorId - Operator ID
+ * @param {number} weeksBack - Number of weeks to look back (default 8)
+ * @returns {Promise<Array>} Rotation history records
+ */
+export async function getRotationHistory(operatorId, weeksBack = 8) {
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - (weeksBack * 7));
+
+    const { data, error } = await supabase
+        .from('rotation_history')
+        .select('*')
+        .eq('operator_id', operatorId)
+        .gte('week_date', cutoffDate.toISOString().split('T')[0])
+        .order('week_date', { ascending: false });
+
+    if (error) {
+        console.error('Error fetching rotation history:', error);
+        return [];
+    }
+    return data || [];
+}
+
+/**
+ * Get all rotation history for training plan analysis.
+ * @param {number} weeksBack - Number of weeks to look back (default 12)
+ * @returns {Promise<Array>} All rotation history records
+ */
+export async function getAllRotationHistory(weeksBack = 12) {
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - (weeksBack * 7));
+
+    const { data, error } = await supabase
+        .from('rotation_history')
+        .select('*')
+        .gte('week_date', cutoffDate.toISOString().split('T')[0])
+        .order('week_date', { ascending: false });
+
+    if (error) {
+        console.error('Error fetching all rotation history:', error);
+        return [];
+    }
+    return data || [];
+}
+

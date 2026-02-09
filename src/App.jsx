@@ -191,7 +191,7 @@ const INIT_AREAS = [
   { id: "keg_out", name: "Kegging Outside", type: "line", lineId: "keg", areaTag: "keg", role: "outside" },
   { id: "corona", name: "Corona", type: "line", lineId: "corona", areaTag: "corona" },
   { id: "magor1", name: "Magor 1 Loading", type: "loading", lineId: null, areaTag: "loading", tmsArea: "MAGCAN", min: 1 },
-  { id: "tents", name: "Tent Loading", type: "loading", lineId: null, areaTag: "loading", tmsArea: "MAGNEW", min: 1 },
+  { id: "tents", name: "Tent Loading", type: "loading", lineId: null, areaTag: "loading", tmsArea: "MAGNEW", min: 2 },
   { id: "kegload", name: "Keg Loading", type: "loading", lineId: null, areaTag: "loading", tmsArea: "MAGKEG", min: 1 },
   { id: "packaging", name: "Packaging", type: "fixed", lineId: null, areaTag: "packaging", min: 1 },
   { id: "office", name: "Office", type: "office", lineId: null, areaTag: "office", min: 2 },
@@ -340,9 +340,127 @@ function getSkapProgress(opId, training) {
 }
 
 /* ═══════════════════════════════════════════════════
+   ROTATION TRACKING HELPERS
+   ═══════════════════════════════════════════════════ */
+/**
+ * Calculate weeks since operator worked in an area.
+ * @param {string} opId - Operator ID
+ * @param {string} areaId - Area ID
+ * @param {Array} rotationHistory - Rotation history records
+ * @returns {number} Weeks since last worked (999 if never)
+ */
+function weeksSinceWorked(opId, areaId, rotationHistory) {
+  if (!rotationHistory || rotationHistory.length === 0) return 999; // Never worked
+
+  const areaHistory = rotationHistory
+    .filter(h => h.operator_id === opId && h.area_id === areaId)
+    .sort((a, b) => new Date(b.week_date) - new Date(a.week_date));
+
+  if (areaHistory.length === 0) return 999; // Never worked in this area
+
+  const lastWorked = new Date(areaHistory[0].week_date);
+  const now = new Date();
+  const diffTime = Math.abs(now - lastWorked);
+  const diffWeeks = Math.ceil(diffTime / (1000 * 60 * 60 * 24 * 7));
+
+  return diffWeeks;
+}
+
+/**
+ * Get rotation score for sorting (higher = should work here).
+ * @param {string} opId - Operator ID
+ * @param {string} areaId - Area ID
+ * @param {Array} rotationHistory - Rotation history records
+ * @returns {number} Rotation score
+ */
+function getRotationScore(opId, areaId, rotationHistory) {
+  const weeks = weeksSinceWorked(opId, areaId, rotationHistory);
+  // Operators who haven't worked here recently get higher scores
+  return weeks;
+}
+
+/**
+ * Save week's assignments to rotation history in Supabase.
+ * @param {string} weekDate - Week start date (YYYY-MM-DD)
+ * @param {string} shiftId - Shift ID
+ * @param {Object} assignments - Daily assignments { date: { opId: areaId } }
+ * @param {Array} ops - Operators list
+ */
+async function saveWeekRotationHistory(weekDate, shiftId, assignments, ops) {
+  const { saveRotationHistory } = await import('./utils/supabaseClient.js');
+
+  // Calculate hours per assignment (assuming 40-hour week)
+  const hoursPerWeek = 40;
+
+  // Aggregate assignments by operator and area
+  const opAreaMap = {};
+
+  Object.values(assignments).forEach(dailyAssign => {
+    Object.entries(dailyAssign).forEach(([opId, areaId]) => {
+      const op = ops.find(o => o.id === opId);
+      if (!op || op.isAgency) return; // Only track FTE
+
+      const key = `${opId}_${areaId}`;
+      if (!opAreaMap[key]) {
+        opAreaMap[key] = { opId, areaId, count: 0 };
+      }
+      opAreaMap[key].count++;
+    });
+  });
+
+  // Save to Supabase
+  for (const { opId, areaId, count } of Object.values(opAreaMap)) {
+    const hours = (count / 7) * hoursPerWeek; // Proportional hours
+    await saveRotationHistory(opId, weekDate, areaId, hours, shiftId);
+  }
+}
+
+/**
+ * Generate training plan based on rotation history.
+ * Identifies operators who need exposure to areas they're qualified for but haven't worked recently.
+ * @param {Array} ops - Operators list
+ * @param {Array} areas - Areas list
+ * @param {Array} rotationHistory - Rotation history records
+ * @returns {Array} Training needs with priority levels
+ */
+function generateTrainingPlan(ops, areas, rotationHistory) {
+  const trainingNeeds = [];
+
+  ops.filter(op => !op.isAgency).forEach(op => {
+    areas.forEach(area => {
+      // Skip if not qualified
+      if (!canWorkArea(op.id, area.id, ops)) return;
+
+      const weeks = weeksSinceWorked(op.id, area.id, rotationHistory);
+
+      let priority = null;
+      if (weeks >= 8) priority = 'high';
+      else if (weeks >= 4) priority = 'medium';
+      else if (weeks >= 2) priority = 'low';
+
+      if (priority) {
+        trainingNeeds.push({
+          operatorId: op.id,
+          operatorName: op.name,
+          areaId: area.id,
+          areaName: area.name,
+          weeksAgo: weeks === 999 ? 'Never' : weeks,
+          priority
+        });
+      }
+    });
+  });
+
+  return trainingNeeds.sort((a, b) => {
+    const priorityOrder = { high: 3, medium: 2, low: 1 };
+    return priorityOrder[b.priority] - priorityOrder[a.priority];
+  });
+}
+
+/* ═══════════════════════════════════════════════════
    ROTA ENGINE
    ═══════════════════════════════════════════════════ */
-function genRota(ops, areas, lines, team, hols, weekStart, prevAssign, training, machineStatus, loadingData, staffingPlan) {
+function genRota(ops, areas, lines, team, hols, weekStart, prevAssign, training, machineStatus, loadingData, staffingPlan, rotationHistory = []) {
   const warns = [], assigns = {}, grid = {};
   const dates = Array.from({ length: 7 }, (_, i) => ad(weekStart, i));
   const hist = {}; ops.forEach(o => { hist[o.id] = {} });
@@ -489,7 +607,22 @@ function genRota(ops, areas, lines, team, hols, weekStart, prevAssign, training,
         const assigned = Object.values(ba).filter(v => v === area.id).length;
         const hasFTE = Object.entries(ba).some(([id, aid]) => aid === area.id && !availAgency.some(ag => ag.id === id));
         if (!hasFTE && assigned < area.need) {
-          const fteCands = area.eligible.filter(o => !usedFTE.has(o.id)).map(o => ({ ...o, sc: (hist[o.id]?.[area.id] || 0) + Math.random() * 0.4 })).sort((a, b) => a.sc - b.sc);
+          // ROTATION-AWARE: Sort FTE by rotation score (prefer those who haven't worked can line recently)
+          const fteCands = area.eligible
+            .filter(o => !usedFTE.has(o.id))
+            .map(o => ({
+              ...o,
+              rotationScore: getRotationScore(o.id, area.id, rotationHistory),
+              histScore: (hist[o.id]?.[area.id] || 0)
+            }))
+            .sort((a, b) => {
+              // Primary: rotation (higher weeks = higher priority)
+              if (b.rotationScore !== a.rotationScore) {
+                return b.rotationScore - a.rotationScore;
+              }
+              // Secondary: historical balance (lower = higher priority)
+              return a.histScore - b.histScore;
+            });
           if (fteCands.length > 0) {
             ba[fteCands[0].id] = area.id; usedFTE.add(fteCands[0].id);
           }
@@ -507,18 +640,45 @@ function genRota(ops, areas, lines, team, hols, weekStart, prevAssign, training,
         // If still short, use more FTE
         const stillNeeded = remaining - Math.min(agCands.length, remaining);
         if (stillNeeded > 0) {
-          const fteCands = area.eligible.filter(o => !usedFTE.has(o.id)).map(o => ({ ...o, sc: (hist[o.id]?.[area.id] || 0) + Math.random() * 0.4 })).sort((a, b) => a.sc - b.sc);
+          // ROTATION-AWARE: Additional FTE for can line
+          const fteCands = area.eligible
+            .filter(o => !usedFTE.has(o.id))
+            .map(o => ({
+              ...o,
+              rotationScore: getRotationScore(o.id, area.id, rotationHistory),
+              histScore: (hist[o.id]?.[area.id] || 0)
+            }))
+            .sort((a, b) => {
+              if (b.rotationScore !== a.rotationScore) {
+                return b.rotationScore - a.rotationScore;
+              }
+              return a.histScore - b.histScore;
+            });
           fteCands.slice(0, stillNeeded).forEach(o => { ba[o.id] = area.id; usedFTE.add(o.id) });
         }
       });
 
-      // Phase 2: Assign other areas — FTE first, then agency
+      // Phase 2: Assign other areas — FTE first, then agency (ROTATION-AWARE)
       otherAreas.forEach(area => {
         const assigned = Object.values(ba).filter(v => v === area.id).length;
         const remaining = area.need - assigned;
         if (remaining <= 0) return;
-        // FTE first
-        const fteCands = area.eligible.filter(o => !usedFTE.has(o.id)).map(o => ({ ...o, sc: (hist[o.id]?.[area.id] || 0) + Math.random() * 0.4 })).sort((a, b) => a.sc - b.sc);
+        // FTE first (rotation-aware)
+        const fteCands = area.eligible
+          .filter(o => !usedFTE.has(o.id))
+          .map(o => ({
+            ...o,
+            rotationScore: getRotationScore(o.id, area.id, rotationHistory),
+            histScore: (hist[o.id]?.[area.id] || 0)
+          }))
+          .sort((a, b) => {
+            // Primary: rotation (higher weeks = higher priority)
+            if (b.rotationScore !== a.rotationScore) {
+              return b.rotationScore - a.rotationScore;
+            }
+            // Secondary: historical balance (lower = higher priority)
+            return a.histScore - b.histScore;
+          });
         fteCands.slice(0, remaining).forEach(o => { ba[o.id] = area.id; usedFTE.add(o.id) });
         // Agency for remaining
         const stillNeeded = remaining - Math.min(fteCands.length, remaining);
@@ -983,6 +1143,133 @@ function HelpModal({ onClose }) {
   );
 }
 
+/* ═══════════════════════════════════════════════════
+   ROTA CONFIRMATION MODAL
+   ═══════════════════════════════════════════════════ */
+function RotaConfirmModal({ week, result, onConfirm, onCancel }) {
+  if (!result) return null;
+
+  const assignedCount = Object.keys(result.assigns).length;
+  const areasCovered = new Set(Object.values(result.assigns)).size;
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999, padding: 20 }}>
+      <div style={{ ...S.card, maxWidth: 600, width: "100%" }}>
+        <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 12, color: "#10B981" }}>✓ Rota Generated Successfully</h3>
+
+        <div style={{ marginBottom: 20 }}>
+          <p style={{ fontSize: 13, marginBottom: 16, color: "var(--text-primary)" }}>
+            Review the rota and confirm to save it to the database for tracking.
+          </p>
+
+          <div style={{ background: "rgba(16,185,129,0.1)", border: "1px solid rgba(16,185,129,0.3)", borderRadius: 6, padding: 16, marginBottom: 12 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <div>
+                <div style={{ fontSize: 11, color: "#64748B", marginBottom: 4 }}>Week</div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: "#10B981" }}>{fmt(week)}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 11, color: "#64748B", marginBottom: 4 }}>Operators Assigned</div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: "#10B981" }}>{assignedCount}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 11, color: "#64748B", marginBottom: 4 }}>Areas Covered</div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: "#10B981" }}>{areasCovered}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 11, color: "#64748B", marginBottom: 4 }}>Warnings</div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: result.warns.length > 0 ? "#F59E0B" : "#10B981" }}>
+                  {result.warns.length > 0 ? result.warns.length : "None"}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {result.warns.length > 0 && (
+            <div style={{ background: "rgba(245,158,11,0.1)", border: "1px solid rgba(245,158,11,0.3)", borderRadius: 6, padding: 12, marginBottom: 12 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: "#F59E0B", marginBottom: 6 }}>⚠️ Warnings:</div>
+              {result.warns.map((warn, i) => (
+                <div key={i} style={{ fontSize: 11, color: "#F59E0B", marginLeft: 8 }}>• {warn}</div>
+              ))}
+            </div>
+          )}
+
+          <div style={{ background: "rgba(59,130,246,0.1)", border: "1px solid rgba(59,130,246,0.3)", borderRadius: 6, padding: 12 }}>
+            <p style={{ fontSize: 12, color: "#3B82F6", marginBottom: 4 }}>
+              <strong>What happens when you confirm:</strong>
+            </p>
+            <p style={{ fontSize: 11, color: "var(--text-secondary)" }}>
+              • Rota assignments will be saved to the database<br />
+              • Operator work history will be updated<br />
+              • This data will be used for rotation tracking and balance reports
+            </p>
+          </div>
+        </div>
+
+        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+          <button onClick={onCancel} style={{ ...S.bg, padding: "8px 16px", border: "1px solid var(--border-color)" }}>
+            Cancel
+          </button>
+          <button onClick={onConfirm} style={{ padding: "8px 20px", border: "none", background: "#10B981", color: "#fff", fontWeight: 600, borderRadius: 6, cursor: "pointer", fontFamily: "inherit" }}>
+            ✓ Confirm & Save to Database
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════
+   CAN LINE CONFIRMATION MODAL
+   ═══════════════════════════════════════════════════ */
+function CanLineConfirmModal({ machinesDown, onConfirm, onCancel }) {
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999, padding: 20 }}>
+      <div style={{ ...S.card, maxWidth: 500, width: "100%" }}>
+        <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 12, color: "#F59E0B" }}>⚠️ Can Line Staffing Adjustment</h3>
+
+        <div style={{ marginBottom: 20 }}>
+          <p style={{ fontSize: 13, marginBottom: 12, color: "var(--text-primary)" }}>
+            The following can line machine(s) are marked as <strong style={{ color: "#EF4444" }}>DOWN</strong>:
+          </p>
+          <div style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 6, padding: 12, marginBottom: 12 }}>
+            {machinesDown.map((machine, i) => (
+              <div key={i} style={{ fontSize: 12, fontWeight: 600, color: "#EF4444" }}>
+                • {machine}
+              </div>
+            ))}
+          </div>
+
+          <div style={{ background: "rgba(245,158,11,0.1)", border: "1px solid rgba(245,158,11,0.3)", borderRadius: 6, padding: 12 }}>
+            <p style={{ fontSize: 12, color: "#F59E0B", marginBottom: 8 }}>
+              <strong>Staffing Recommendation:</strong>
+            </p>
+            <p style={{ fontSize: 12, color: "var(--text-secondary)" }}>
+              • <strong>Normal:</strong> 4 operators on can line<br />
+              • <strong>With machine down:</strong> 3 operators recommended
+            </p>
+          </div>
+        </div>
+
+        <p style={{ fontSize: 13, marginBottom: 20, color: "var(--text-secondary)" }}>
+          Would you like to generate the rota with <strong>3 operators</strong> on the can line instead of 4?
+        </p>
+
+        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+          <button onClick={onCancel} style={{ ...S.bg, padding: "8px 16px", border: "1px solid var(--border-color)" }}>
+            Cancel
+          </button>
+          <button onClick={() => onConfirm(false)} style={{ ...S.bg, padding: "8px 16px", border: "1px solid #64748B", background: "rgba(100,116,139,0.1)" }}>
+            Keep 4 Operators
+          </button>
+          <button onClick={() => onConfirm(true)} style={{ padding: "8px 16px", border: "none", background: "#F59E0B", color: "#000", fontWeight: 600, borderRadius: 6, cursor: "pointer", fontFamily: "inherit" }}>
+            Use 3 Operators
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function ShiftWorkspace({ shift, onBack, areas, setAreas, lines, machineStatus, setMachineStatus, planProducts, setPlanProducts, loadingData, setLoadingData, staffingPlan, setStaffingPlan, theme, setTheme }) {
   const [tab, setTab] = useState("rota");
@@ -996,6 +1283,8 @@ function ShiftWorkspace({ shift, onBack, areas, setAreas, lines, machineStatus, 
   const [result, setResult] = useState(null);
   const [teamSettings, setTeamSettings] = useState({ name: shift.name, color: shift.color, anchor: shift.anchor, flm: shift.flm });
   const [week, setWeek] = useState(ws(new Date()));
+  const [rotationHistory, setRotationHistory] = useState([]);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
   const isMobile = useIsMobile();
 
   const sk = `shift:${shift.id}`;
@@ -1013,6 +1302,16 @@ function ShiftWorkspace({ shift, onBack, areas, setAreas, lines, machineStatus, 
       setLoaded(true);
     })();
   }, [sk, shift.id]);
+
+  // Load rotation history from Supabase
+  useEffect(() => {
+    (async () => {
+      if (!loaded) return;
+      const { getAllRotationHistory } = await import('./utils/supabaseClient.js');
+      const history = await getAllRotationHistory(12); // Last 12 weeks
+      setRotationHistory(history);
+    })();
+  }, [loaded]);
 
   // Save shift data on change
   useEffect(() => { if (loaded) sSet(`${sk}:ops`, ops) }, [ops, loaded, sk]);
@@ -1046,10 +1345,21 @@ function ShiftWorkspace({ shift, onBack, areas, setAreas, lines, machineStatus, 
   }, [staffingPlan, loaded]);
 
   const gen = useCallback(() => {
-    const r = genRota(ops, areas, lines, team, hols, week, allA, training, machineStatus, loadingData, staffingPlan);
+    const r = genRota(ops, areas, lines, team, hols, week, allA, training, machineStatus, loadingData, staffingPlan, rotationHistory);
     setAllA(p => ({ ...p, ...r.assigns }));
     setResult(r);
-  }, [ops, areas, lines, team, hols, week, allA, training, machineStatus, loadingData, staffingPlan]);
+    setShowConfirmModal(true); // Show confirmation modal instead of auto-saving
+  }, [ops, areas, lines, team, hols, week, allA, training, machineStatus, loadingData, staffingPlan, rotationHistory]);
+
+  const confirmRota = useCallback(() => {
+    if (!result) return;
+
+    // Save rotation history to Supabase
+    const weekStr = fmt(week);
+    saveWeekRotationHistory(weekStr, shift.id, result.assigns, ops);
+
+    setShowConfirmModal(false);
+  }, [result, week, shift.id, ops]);
 
   const wd = useMemo(() => Array.from({ length: 7 }, (_, i) => ad(week, i)), [week]);
   const tabs = [{ id: "rota", l: "Rota" }, { id: "handover", l: "🔄 Handover" }, { id: "staffing", l: "👥 Staffing" }, { id: "lines", l: "Lines" }, { id: "loading", l: "Loading" }, { id: "settings", l: "⚙️ Settings" }];
@@ -1092,10 +1402,18 @@ function ShiftWorkspace({ shift, onBack, areas, setAreas, lines, machineStatus, 
           </div>
           {settingsTab === "operators" && <Ops {...{ ops, setOps, team, training }} />}
           {settingsTab === "skap" && <Skap />}
-          {settingsTab === "training" && <Training {...{ ops, training, setTraining, areas }} />}
+          {settingsTab === "training" && <Training {...{ ops, training, setTraining, areas, rotationHistory }} />}
           {settingsTab === "holidays" && <Hols {...{ hols, setHols, ops }} />}
         </div>}
       </main>
+      {showConfirmModal && (
+        <RotaConfirmModal
+          week={week}
+          result={result}
+          onConfirm={confirmRota}
+          onCancel={() => setShowConfirmModal(false)}
+        />
+      )}
     </div>
   );
 }
@@ -2732,3 +3050,4 @@ function Hols({ hols, setHols, ops }) {
       })}</div>}
   </div>);
 }
+
