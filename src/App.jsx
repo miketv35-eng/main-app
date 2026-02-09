@@ -766,6 +766,257 @@ const Ic = {
 };
 
 /* ═══════════════════════════════════════════════════
+   ONBOARDING WIZARD
+   ═══════════════════════════════════════════════════ */
+function OnboardingWizard({ onComplete, onSkip }) {
+  const [step, setStep] = useState(1);
+
+  const modalOverlay = {
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    background: 'rgba(0, 0, 0, 0.7)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 9999,
+    padding: 20
+  };
+
+  const modalCard = {
+    background: 'var(--bg-card)',
+    borderRadius: 12,
+    padding: 40,
+    maxWidth: 600,
+    width: '100%',
+    boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+    position: 'relative'
+  };
+
+  return (
+    <div style={modalOverlay}>
+      <div style={modalCard}>
+        {/* Skip button */}
+        <button
+          onClick={onSkip}
+          style={{
+            position: 'absolute',
+            top: 16,
+            right: 16,
+            background: 'transparent',
+            border: 'none',
+            color: '#94A3B8',
+            cursor: 'pointer',
+            fontSize: 12,
+            fontWeight: 600,
+            padding: '4px 8px'
+          }}
+        >
+          Skip →
+        </button>
+
+        {/* Step 1: Welcome */}
+        {step === 1 && (
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: 48, marginBottom: 16 }}>👋</div>
+            <h2 style={{ margin: '0 0 12px', fontSize: 28, fontWeight: 800 }}>
+              Welcome to Shift Rota Manager!
+            </h2>
+            <p style={{ fontSize: 15, color: '#64748B', marginBottom: 32, lineHeight: 1.6 }}>
+              Let's get you started in 3 simple steps. This quick setup will help you understand the basics.
+            </p>
+
+            <div style={{ display: 'grid', gap: 12, marginBottom: 32, textAlign: 'left' }}>
+              <div style={{ ...S.card, padding: 16, background: 'rgba(59,130,246,0.08)' }}>
+                <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 4, color: '#3B82F6' }}>
+                  📅 Step 1: Upload Staffing Plan
+                </div>
+                <div style={{ fontSize: 12, color: '#64748B' }}>
+                  Upload your Excel staffing plan to get started
+                </div>
+              </div>
+              <div style={{ ...S.card, padding: 16, background: 'rgba(16,185,129,0.08)' }}>
+                <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 4, color: '#10B981' }}>
+                  ⚙️ Step 2: Configure Settings
+                </div>
+                <div style={{ fontSize: 12, color: '#64748B' }}>
+                  Set up your shifts and production areas
+                </div>
+              </div>
+              <div style={{ ...S.card, padding: 16, background: 'rgba(139,92,246,0.08)' }}>
+                <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 4, color: '#8B5CF6' }}>
+                  🚀 Step 3: Generate Your First Rota
+                </div>
+                <div style={{ fontSize: 12, color: '#64748B' }}>
+                  Create your first automated rota
+                </div>
+              </div>
+            </div>
+
+            <button
+              onClick={() => setStep(2)}
+              style={{
+                ...S.bp,
+                background: '#3B82F6',
+                color: '#fff',
+                padding: '12px 32px',
+                fontSize: 15,
+                fontWeight: 700
+              }}
+            >
+              Get Started →
+            </button>
+          </div>
+        )}
+
+        {/* Step 2: Quick Tips */}
+        {step === 2 && (
+          <div>
+            <div style={{ fontSize: 40, marginBottom: 16, textAlign: 'center' }}>💡</div>
+            <h2 style={{ margin: '0 0 12px', fontSize: 24, fontWeight: 800, textAlign: 'center' }}>
+              Quick Tips for Success
+            </h2>
+            <p style={{ fontSize: 14, color: '#64748B', marginBottom: 24, textAlign: 'center' }}>
+              Here are some helpful tips to get the most out of the app
+            </p>
+
+            <div style={{ display: 'grid', gap: 16, marginBottom: 32 }}>
+              <div style={{ display: 'flex', gap: 12, alignItems: 'start' }}>
+                <div style={{ fontSize: 24 }}>📊</div>
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 4 }}>
+                    Rotation Tracking
+                  </div>
+                  <div style={{ fontSize: 12, color: '#64748B', lineHeight: 1.5 }}>
+                    The system automatically tracks where operators work to ensure fair rotation across all areas
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: 12, alignItems: 'start' }}>
+                <div style={{ fontSize: 24 }}>✅</div>
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 4 }}>
+                    Confirmation Before Saving
+                  </div>
+                  <div style={{ fontSize: 12, color: '#64748B', lineHeight: 1.5 }}>
+                    Always review the confirmation modal before saving rotas to the database
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: 12, alignItems: 'start' }}>
+                <div style={{ fontSize: 24 }}>❓</div>
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 4 }}>
+                    Need Help?
+                  </div>
+                  <div style={{ fontSize: 12, color: '#64748B', lineHeight: 1.5 }}>
+                    Click the help button (?) anytime for detailed guidance on any feature
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: 12 }}>
+              <button
+                onClick={() => setStep(1)}
+                style={{
+                  ...S.bg,
+                  background: 'var(--bg-body)',
+                  flex: 1
+                }}
+              >
+                ← Back
+              </button>
+              <button
+                onClick={() => setStep(3)}
+                style={{
+                  ...S.bp,
+                  background: '#3B82F6',
+                  color: '#fff',
+                  flex: 2
+                }}
+              >
+                Continue →
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Step 3: Ready to Go */}
+        {step === 3 && (
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: 48, marginBottom: 16 }}>🎉</div>
+            <h2 style={{ margin: '0 0 12px', fontSize: 28, fontWeight: 800 }}>
+              You're All Set!
+            </h2>
+            <p style={{ fontSize: 15, color: '#64748B', marginBottom: 32, lineHeight: 1.6 }}>
+              You're ready to start using Shift Rota Manager. Upload your staffing plan to begin.
+            </p>
+
+            <div style={{ ...S.card, padding: 20, marginBottom: 32, background: 'rgba(16,185,129,0.08)', borderLeft: '4px solid #10B981' }}>
+              <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 8, color: '#10B981' }}>
+                🚀 Next Steps:
+              </div>
+              <div style={{ fontSize: 13, color: '#64748B', textAlign: 'left', lineHeight: 1.6 }}>
+                1. Upload your staffing plan (Excel file)<br />
+                2. Select a shift to manage<br />
+                3. Click "Generate Rota" to create your first automated schedule
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: 12 }}>
+              <button
+                onClick={() => setStep(2)}
+                style={{
+                  ...S.bg,
+                  background: 'var(--bg-body)',
+                  flex: 1
+                }}
+              >
+                ← Back
+              </button>
+              <button
+                onClick={onComplete}
+                style={{
+                  ...S.bp,
+                  background: '#10B981',
+                  color: '#fff',
+                  flex: 2,
+                  fontSize: 15,
+                  fontWeight: 700
+                }}
+              >
+                Start Using App →
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Progress indicator */}
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginTop: 32 }}>
+          {[1, 2, 3].map(i => (
+            <div
+              key={i}
+              style={{
+                width: 8,
+                height: 8,
+                borderRadius: '50%',
+                background: step === i ? '#3B82F6' : '#E2E8F0',
+                transition: 'background 0.3s'
+              }}
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════
    DEPARTMENT SICKNESS CARD
    ═══════════════════════════════════════════════════ */
 function DepartmentSicknessCard({ totalOperators = 40 }) {
@@ -844,11 +1095,26 @@ function DepartmentSicknessCard({ totalOperators = 40 }) {
 export default function App() {
   const [activeShift, setActiveShift] = useState(null);
   const [theme, setTheme] = useState(() => localStorage.getItem("theme") || "light");
+  const [showOnboarding, setShowOnboarding] = useState(() => {
+    const hasOnboarded = localStorage.getItem('hasCompletedOnboarding');
+    return !hasOnboarded; // Show if user hasn't completed onboarding
+  });
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem('theme', theme);
   }, [theme]);
+
+  const completeOnboarding = () => {
+    localStorage.setItem('hasCompletedOnboarding', 'true');
+    setShowOnboarding(false);
+  };
+
+  const skipOnboarding = () => {
+    localStorage.setItem('hasCompletedOnboarding', 'true');
+    setShowOnboarding(false);
+  };
+
   const [loaded, setLoaded] = useState(false);
 
   // Shared state
@@ -1446,6 +1712,16 @@ function ShiftWorkspace({ shift, onBack, areas, setAreas, lines, machineStatus, 
   return (
     <div style={{ fontFamily: "'Satoshi','Roboto',sans-serif", background: "var(--bg-body)", color: "var(--text-primary)", minHeight: "100vh" }}>
       <link href="https://api.fontshare.com/v2/css?f[]=satoshi@900,700,500,301,701,300,501,401,901,400&display=swap" rel="stylesheet" />
+
+      {/* Onboarding Wizard */}
+      {showOnboarding && (
+        <OnboardingWizard
+          onComplete={completeOnboarding}
+          onSkip={skipOnboarding}
+        />
+      )}
+
+      {/* Header */}
       <header style={{ background: "var(--bg-body)", borderBottom: `2px solid #E5B611`, padding: "10px 20px", display: "flex", flexDirection: isMobile ? "column" : "row", alignItems: "center", justifyContent: "space-between", position: "sticky", top: 0, zIndex: 50, gap: isMobile ? 10 : 0, boxShadow: "0 1px 2px 0 rgba(0, 0, 0, 0.05)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12, width: isMobile ? "100%" : "auto", justifyContent: isMobile ? "space-between" : "flex-start" }}>
           <button onClick={onBack} style={{ ...S.bg, padding: "6px 10px", border: "none" }}><Ic.Back /></button>
