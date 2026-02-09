@@ -1182,6 +1182,7 @@ function Landing({ shifts, onSelect, machineStatus, loadingData, staffingPlan, s
 
     const allLogs = [];
     let processedCount = 0;
+    let latestPlan = null;
 
     for (const file of files) {
       try {
@@ -1280,27 +1281,33 @@ function Landing({ shifts, onSelect, machineStatus, loadingData, staffingPlan, s
 
         // Create plan object
         const plan = { week: dates[0], dates, fte, agency };
-
-        // Save to database (if current week) or just to state
         const weekDate = dates[0];
-        const isCurrentWeek = new Date(weekDate).getTime() >= new Date().getTime() - (7 * 24 * 60 * 60 * 1000);
 
-        if (isCurrentWeek) {
-          setStaffingPlan(plan); // Set as current plan
+        // Always set staffing plan to the most recent week uploaded
+        if (!latestPlan || weekDate > latestPlan.week) {
+          latestPlan = plan;
         }
 
-        // Save to database via API
-        await saveStaffingPlan(weekDate, plan);
+        // Try to save to database (graceful - won't block if tables don't exist)
+        try {
+          await saveStaffingPlan(weekDate, plan);
+        } catch (dbErr) {
+          log.push(`⚠ DB save skipped (run migrations first)`);
+        }
 
         // Extract and save sickness data
         const sicknessRecords = extractSicknessFromPlan(plan, weekDate);
         if (sicknessRecords.length > 0) {
-          await saveSicknessRecords(sicknessRecords);
-          log.push(`✓ Saved ${sicknessRecords.length} sickness records`);
+          try {
+            await saveSicknessRecords(sicknessRecords);
+            log.push(`✓ Saved ${sicknessRecords.length} sickness records`);
+          } catch (dbErr) {
+            log.push(`⚠ Sickness DB save skipped (run migrations first)`);
+          }
         }
 
-        log.push(`✓ Saved to database (Week ${weekDate})`);
-        allLogs.push(`  ✓ ${file.name} - Week ${weekDate}`);
+        log.push(`✓ Parsed successfully (Week ${weekDate})`);
+        allLogs.push(`  ✓ ${file.name} - Week ${weekDate} (FTE: ${fte.A.length + fte.B.length + fte.C.length + fte.D.length} ops)`);
         processedCount++;
 
       } catch (err) {
@@ -1309,6 +1316,10 @@ function Landing({ shifts, onSelect, machineStatus, loadingData, staffingPlan, s
     }
 
     allLogs.push(`\n✓ Completed: ${processedCount}/${files.length} files processed successfully`);
+    if (latestPlan) {
+      setStaffingPlan(latestPlan);
+      allLogs.push(`📋 Active plan set to Week ${latestPlan.week}`);
+    }
     setSpLog(allLogs);
     setSpUploading(false);
     e.target.value = "";
