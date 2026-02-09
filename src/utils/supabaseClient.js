@@ -330,4 +330,86 @@ export async function getAllOperatorStats(startDate = null, endDate = null) {
     return operatorStats;
 }
 
+/**
+ * Save sickness records to database
+ * @param {Array} records - Array of {operator_id, shift_id, week_date, days_sick}
+ * @returns {Promise<Object>} Result with data and error
+ */
+export async function saveSicknessRecords(records) {
+    const { data, error } = await supabase
+        .from('sickness_records')
+        .upsert(records, { onConflict: 'operator_id,shift_id,week_date' });
+
+    if (error) {
+        console.error('Error saving sickness records:', error);
+    }
+
+    return { data, error };
+}
+
+/**
+ * Get sickness statistics for a date range
+ * @param {string} startDate - Start date (YYYY-MM-DD)
+ * @param {string} endDate - Optional end date (YYYY-MM-DD)
+ * @returns {Promise<Array>} Array of sickness records
+ */
+export async function getSicknessStats(startDate, endDate = null) {
+    let query = supabase
+        .from('sickness_records')
+        .select('*')
+        .gte('week_date', startDate);
+
+    if (endDate) {
+        query = query.lte('week_date', endDate);
+    }
+
+    const { data, error } = await query.order('week_date', { ascending: false });
+
+    if (error) {
+        console.error('Error fetching sickness stats:', error);
+        return [];
+    }
+
+    return data || [];
+}
+
+/**
+ * Get department-wide sickness rate for last N weeks
+ * @param {number} weeksBack - Number of weeks to look back (default 6)
+ * @param {number} totalOperators - Total number of operators across all shifts
+ * @returns {Promise<Object>} { rate, totalSickDays, totalWorkDays, trend }
+ */
+export async function getDepartmentSicknessRate(weeksBack = 6, totalOperators = 40) {
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - (weeksBack * 7));
+
+    const records = await getSicknessStats(
+        cutoffDate.toISOString().split('T')[0]
+    );
+
+    const totalSickDays = records.reduce((sum, r) => sum + r.days_sick, 0);
+    const totalWorkDays = weeksBack * 7 * totalOperators;
+    const rate = totalWorkDays > 0 ? ((totalSickDays / totalWorkDays) * 100).toFixed(1) : '0.0';
+
+    // Calculate trend (compare last 3 weeks vs previous 3 weeks)
+    const midpoint = new Date();
+    midpoint.setDate(midpoint.getDate() - (weeksBack / 2 * 7));
+    const midpointStr = midpoint.toISOString().split('T')[0];
+
+    const recentRecords = records.filter(r => r.week_date >= midpointStr);
+    const olderRecords = records.filter(r => r.week_date < midpointStr);
+
+    const recentSickDays = recentRecords.reduce((sum, r) => sum + r.days_sick, 0);
+    const olderSickDays = olderRecords.reduce((sum, r) => sum + r.days_sick, 0);
+
+    const trend = recentSickDays > olderSickDays ? 'up' : recentSickDays < olderSickDays ? 'down' : 'stable';
+
+    return {
+        rate,
+        totalSickDays,
+        totalWorkDays,
+        trend
+    };
+}
+
 export { supabase };
