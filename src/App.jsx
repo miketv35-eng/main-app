@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useMemo, useEffect } from "react";
 import * as XLSX from "xlsx";
-import { saveSicknessRecords, getDepartmentSicknessRate } from './utils/supabaseClient';
+import { saveSicknessRecords, getDepartmentSicknessRate, saveStaffingPlan } from './utils/supabaseClient';
 
 const API_URL = "/api/claude";
 
@@ -1174,108 +1174,175 @@ function Landing({ shifts, onSelect, machineStatus, loadingData, staffingPlan, s
   const STATUS_CODES = new Set(["D", "N", "H", "S", "10M", "B", "RO", "TOIL", "U", "DISDAM", "PD-DAYS", "PD-NIGHTS"]);
 
   const handleStaffingUpload = async (e) => {
-    const file = e.target.files?.[0]; if (!file) return;
-    setSpUploading(true); setSpLog(["Reading file..."]);
-    try {
-      const data = await file.arrayBuffer();
-      const wb = XLSX.read(data, { type: "array", cellDates: true });
-      const log = [];
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
 
-      // Helper: try to parse a cell as a date string
-      const tryDate = (v) => {
-        if (!v) return null;
-        if (v instanceof Date) return fmt(v);
-        if (typeof v === "number") { return fmt(new Date(Math.round((v - 25569) * 86400000))) }
-        const s = String(v).trim();
-        // Try ISO-ish: "2026-02-08" or "2026-02-08T00:00:00..."
-        const m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
-        if (m) return `${m[1]}-${m[2]}-${m[3]}`;
-        return null;
-      };
+    setSpUploading(true);
+    setSpLog([`Processing ${files.length} file(s)...`]);
 
-      // Parse FTE tab
-      const fteSheet = wb.Sheets["FTE"] || wb.Sheets["fte"];
-      if (!fteSheet) { setSpLog(["✕ No 'FTE' tab found"]); setSpUploading(false); return }
-      const fteRows = XLSX.utils.sheet_to_json(fteSheet, { header: 1, defval: "" });
-      log.push(`FTE tab: ${fteRows.length} rows`);
+    const allLogs = [];
+    let processedCount = 0;
 
-      // Find dates from row 2 (index 1)
-      const dateRow = fteRows[1] || [];
-      const dates = [];
-      const dateCols = [];
-      for (let c = 2; c < 16; c++) {
-        const d = tryDate(dateRow[c]);
-        if (d) { dates.push(d); dateCols.push(c) }
-      }
-      if (!dates.length) { setSpLog(["✕ No dates found in FTE row 2"]); setSpUploading(false); return }
-      log.push(`Dates: ${dates.join(", ")}`);
+    for (const file of files) {
+      try {
+        allLogs.push(`\n📁 Processing: ${file.name}`);
+        setSpLog([...allLogs, `⏳ ${processedCount + 1}/${files.length} files processed`]);
 
-      // Parse shift blocks
-      const fte = { A: [], B: [], C: [], D: [] };
-      let currentShift = null;
-      for (let r = 2; r < fteRows.length; r++) {
-        const row = fteRows[r];
-        const colA = String(row[0] || "").trim();
-        const colB = String(row[1] || "").trim();
+        const data = await file.arrayBuffer();
+        const wb = XLSX.read(data, { type: "array", cellDates: true });
+        const log = [];
 
-        // Check for shift header
-        const shiftMatch = colA.match(/^([ABCD])\s*SHIFT/i);
-        if (shiftMatch) { currentShift = shiftMatch[1].toUpperCase(); continue }
-        // Stop at ASRS or non-shift sections
-        if (/^(ASRS|FLC|TOTAL)/i.test(colA)) { currentShift = null; continue }
-        if (!currentShift || !colA || !SHIFT_HEADERS.includes(currentShift)) continue;
+        // Helper: try to parse a cell as a date string
+        const tryDate = (v) => {
+          if (!v) return null;
+          if (v instanceof Date) return fmt(v);
+          if (typeof v === "number") { return fmt(new Date(Math.round((v - 25569) * 86400000))) }
+          const s = String(v).trim();
+          // Try ISO-ish: "2026-02-08" or "2026-02-08T00:00:00..."
+          const m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+          if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+          return null;
+        };
 
-        // Parse operator row
-        const name = colA.replace(/\s*-\s*LT$/, "").trim();
-        const position = colB.toUpperCase().replace(/\s/g, "");
-        const days = {};
-        dateCols.forEach((c, i) => {
-          const v = String(row[c] || "").trim().toUpperCase();
-          if (v && STATUS_CODES.has(v)) days[dates[i]] = v;
+        // Parse FTE tab
+        const fteSheet = wb.Sheets["FTE"] || wb.Sheets["fte"];
+        if (!fteSheet) {
+          allLogs.push(`  ✕ No 'FTE' tab found in ${file.name}`);
+          continue;
+        }
+        const fteRows = XLSX.utils.sheet_to_json(fteSheet, { header: 1, defval: "" });
+        log.push(`FTE tab: ${fteRows.length} rows`);
+
+        // Extract dates from first row
+        const dateRow = fteRows[0] || [];
+        const dates = []; const dateCols = [];
+        dateRow.forEach((v, i) => {
+          const d = tryDate(v);
+          if (d) { dates.push(d); dateCols.push(i) }
         });
-        // Include operator if they have a name (even if all days are blank = off pattern week)
-        fte[currentShift].push({ name, position, days });
-      }
-      log.push(`FTE: A=${fte.A.length}, B=${fte.B.length}, C=${fte.C.length}, D=${fte.D.length}`);
-      // Debug: show first operator from each shift
-      ["A", "B", "C", "D"].forEach(s => { if (fte[s].length > 0) { const op = fte[s][0]; log.push(`  ${s}[0]: ${op.name} (${op.position}) days=${JSON.stringify(op.days)}`) } });
-
-      // Parse AGENCY tab
-      const agSheet = wb.Sheets["AGENCY"] || wb.Sheets["Agency"] || wb.Sheets["agency"];
-      const agency = [];
-      if (agSheet) {
-        const agRows = XLSX.utils.sheet_to_json(agSheet, { header: 1, defval: "" });
-        // Dates in row 1
-        const agDateRow = agRows[0] || [];
-        const agDates = []; const agDateCols = [];
-        for (let c = 2; c < 16; c++) {
-          const d = tryDate(agDateRow[c]);
-          if (d) { agDates.push(d); agDateCols.push(c) }
+        if (dates.length === 0) {
+          allLogs.push(`  ✕ No dates found in ${file.name}`);
+          continue;
         }
-        // Parse agency workers (skip header rows, totals)
-        for (let r = 3; r < agRows.length; r++) {
-          const row = agRows[r];
-          const name = String(row[0] || "").trim();
-          const type = String(row[1] || "").trim();
+        log.push(`Dates: ${dates[0]} to ${dates[dates.length - 1]} (${dates.length} days)`);
+
+        // Parse operators by shift
+        const fte = { A: [], B: [], C: [], D: [] };
+        let currentShift = null;
+        for (let r = 1; r < fteRows.length; r++) {
+          const row = fteRows[r];
+          const colA = String(row[0] || "").trim();
+          const colB = String(row[1] || "").trim();
+          // Detect shift header
+          if (/^SHIFT\s+[ABCD]$/i.test(colA)) {
+            currentShift = colA.match(/[ABCD]/i)[0].toUpperCase();
+            continue;
+          }
+          if (!currentShift) continue;
+          const name = colA;
           if (!name || /^(TOTAL|$)/i.test(name)) continue;
+          const position = colB.toUpperCase().replace(/\s/g, "");
           const days = {};
-          agDateCols.forEach((c, i) => {
+          dateCols.forEach((c, i) => {
             const v = String(row[c] || "").trim().toUpperCase();
-            if (v && (STATUS_CODES.has(v) || v === "D" || v === "N")) days[agDates[i]] = v;
+            if (v && STATUS_CODES.has(v)) days[dates[i]] = v;
           });
-          if (Object.keys(days).length > 0) { agency.push({ name, type, days }) }
+          // Include operator if they have a name (even if all days are blank = off pattern week)
+          fte[currentShift].push({ name, position, days });
         }
-        log.push(`Agency: ${agency.length} workers`);
-      } else { log.push("No AGENCY tab found") }
+        log.push(`FTE: A=${fte.A.length}, B=${fte.B.length}, C=${fte.C.length}, D=${fte.D.length}`);
 
-      const plan = { week: dates[0], dates, fte, agency };
-      setStaffingPlan(plan);
-      log.push("✓ Staffing plan loaded successfully");
-      setSpLog(log);
-    } catch (err) { setSpLog([`✕ Error: ${err.message}`]) }
+        // Parse AGENCY tab
+        const agSheet = wb.Sheets["AGENCY"] || wb.Sheets["Agency"] || wb.Sheets["agency"];
+        const agency = [];
+        if (agSheet) {
+          const agRows = XLSX.utils.sheet_to_json(agSheet, { header: 1, defval: "" });
+          const agDateRow = agRows[0] || [];
+          const agDates = []; const agDateCols = [];
+          agDateRow.forEach((v, i) => {
+            const d = tryDate(v);
+            if (d) { agDates.push(d); agDateCols.push(i) }
+          });
+          for (let r = 1; r < agRows.length; r++) {
+            const row = agRows[r];
+            const name = String(row[0] || "").trim();
+            const type = String(row[1] || "").trim();
+            if (!name || /^(TOTAL|$)/i.test(name)) continue;
+            const days = {};
+            agDateCols.forEach((c, i) => {
+              const v = String(row[c] || "").trim().toUpperCase();
+              if (v && (STATUS_CODES.has(v) || v === "D" || v === "N")) days[agDates[i]] = v;
+            });
+            if (Object.keys(days).length > 0) { agency.push({ name, type, days }) }
+          }
+          log.push(`Agency: ${agency.length} workers`);
+        }
+
+        // Create plan object
+        const plan = { week: dates[0], dates, fte, agency };
+
+        // Save to database (if current week) or just to state
+        const weekDate = dates[0];
+        const isCurrentWeek = new Date(weekDate).getTime() >= new Date().getTime() - (7 * 24 * 60 * 60 * 1000);
+
+        if (isCurrentWeek) {
+          setStaffingPlan(plan); // Set as current plan
+        }
+
+        // Save to database via API
+        await saveStaffingPlan(weekDate, plan);
+
+        // Extract and save sickness data
+        const sicknessRecords = extractSicknessFromPlan(plan, weekDate);
+        if (sicknessRecords.length > 0) {
+          await saveSicknessRecords(sicknessRecords);
+          log.push(`✓ Saved ${sicknessRecords.length} sickness records`);
+        }
+
+        log.push(`✓ Saved to database (Week ${weekDate})`);
+        allLogs.push(`  ✓ ${file.name} - Week ${weekDate}`);
+        processedCount++;
+
+      } catch (err) {
+        allLogs.push(`  ✕ ${file.name}: ${err.message}`);
+      }
+    }
+
+    allLogs.push(`\n✓ Completed: ${processedCount}/${files.length} files processed successfully`);
+    setSpLog(allLogs);
     setSpUploading(false);
     e.target.value = "";
   };
+
+  // Helper function to extract sickness data from staffing plan
+  const extractSicknessFromPlan = (plan, weekDate) => {
+    const records = [];
+    const shifts = ['A', 'B', 'C', 'D'];
+
+    shifts.forEach(shiftId => {
+      const operators = plan.fte[shiftId] || [];
+      operators.forEach(op => {
+        let sickDays = 0;
+        Object.values(op.days || {}).forEach(status => {
+          if (status === 'S' || status === 'SICK') {
+            sickDays++;
+          }
+        });
+
+        if (sickDays > 0) {
+          records.push({
+            operator_id: `${shiftId.toLowerCase()}_${op.name.toLowerCase().replace(/\s+/g, '_')}`,
+            shift_id: shiftId.toLowerCase(),
+            week_date: weekDate,
+            days_sick: sickDays
+          });
+        }
+      });
+    });
+
+    return records;
+  };
+
   return (
     <div style={{ fontFamily: "'Satoshi','Roboto',sans-serif", background: "var(--bg-body)", color: "var(--text-primary)", minHeight: "100vh", transition: "background 0.3s, color 0.3s" }}>
       <link href="https://api.fontshare.com/v2/css?f[]=satoshi@900,700,500,301,701,300,501,401,901,400&display=swap" rel="stylesheet" />
@@ -1421,7 +1488,7 @@ function Landing({ shifts, onSelect, machineStatus, loadingData, staffingPlan, s
           <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
             <label style={{ ...S.bp, background: "linear-gradient(135deg,#10B981,#059669)", fontSize: 11, padding: "6px 14px", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4 }}>
               {spUploading ? "⏳ Parsing..." : "📁 Upload Staffing XLSX"}
-              <input type="file" accept=".xlsx,.xls" onChange={handleStaffingUpload} disabled={spUploading} style={{ display: "none" }} />
+              <input type="file" accept=".xlsx,.xls" onChange={handleStaffingUpload} disabled={spUploading} multiple style={{ display: "none" }} />
             </label>
             {staffingPlan && <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
               {["A", "B", "C", "D"].map(s => {
