@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useMemo, useEffect } from "react";
 import * as XLSX from "xlsx";
+import { saveSicknessRecords, getDepartmentSicknessRate } from './utils/supabaseClient';
 
 const API_URL = "/api/claude";
 
@@ -763,6 +764,79 @@ const Ic = {
   Check: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="20 6 9 17 4 12" /></svg>,
   Back: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="19" y1="12" x2="5" y2="12" /><polyline points="12 19 5 12 12 5" /></svg>,
 };
+
+/* ═══════════════════════════════════════════════════
+   DEPARTMENT SICKNESS CARD
+   ═══════════════════════════════════════════════════ */
+function DepartmentSicknessCard({ totalOperators = 40 }) {
+  const [stats, setStats] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    getDepartmentSicknessRate(6, totalOperators)
+      .then(data => {
+        setStats(data);
+        setLoading(false);
+      })
+      .catch(err => {
+        console.error('Error loading sickness stats:', err);
+        setLoading(false);
+      });
+  }, [totalOperators]);
+
+  if (loading) {
+    return (
+      <div style={{ ...S.card, padding: 20 }}>
+        <div style={{ fontSize: 14, color: '#64748B' }}>Loading sickness data...</div>
+      </div>
+    );
+  }
+
+  if (!stats) {
+    return (
+      <div style={{ ...S.card, padding: 20 }}>
+        <div style={{ fontSize: 14, color: '#64748B' }}>No sickness data available</div>
+        <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 4 }}>
+          Upload staffing plans to track sickness
+        </div>
+      </div>
+    );
+  }
+
+  const trendIcon = stats.trend === 'up' ? '📈' : stats.trend === 'down' ? '📉' : '➡️';
+  const trendColor = stats.trend === 'up' ? '#EF4444' : stats.trend === 'down' ? '#10B981' : '#64748B';
+  const rateColor = parseFloat(stats.rate) > 5 ? '#EF4444' : '#10B981';
+
+  return (
+    <div style={{ ...S.card, padding: 20 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+        <div>
+          <h3 style={{ margin: 0, fontSize: 14, fontWeight: 700, marginBottom: 4 }}>
+            🏥 Department Sickness Rate
+          </h3>
+          <div style={{ fontSize: 11, color: '#64748B' }}>Last 6 weeks</div>
+        </div>
+        <div style={{ textAlign: 'right' }}>
+          <div style={{ fontSize: 32, fontWeight: 800, color: rateColor, lineHeight: 1 }}>
+            {stats.rate}%
+          </div>
+        </div>
+      </div>
+
+      <div style={{ fontSize: 11, color: '#64748B', marginBottom: 8 }}>
+        {stats.totalSickDays} sick days / {stats.totalWorkDays} total days
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 600 }}>
+        <span style={{ color: trendColor }}>{trendIcon}</span>
+        <span style={{ color: trendColor }}>
+          {stats.trend === 'up' ? 'Increasing' : stats.trend === 'down' ? 'Decreasing' : 'Stable'}
+        </span>
+        <span style={{ color: '#94A3B8' }}>vs previous 3 weeks</span>
+      </div>
+    </div>
+  );
+}
 
 /* ═══════════════════════════════════════════════════
    MAIN APP — LANDING + SHIFT WORKSPACE
@@ -2746,6 +2820,11 @@ function LoadingView({ loadingData, setLoadingData }) {
             </div>
           </div>;
         })}
+
+        {/* Department Sickness Card */}
+        <div style={{ maxWidth: 700, margin: "0 auto 16px" }}>
+          <DepartmentSicknessCard totalOperators={40} />
+        </div>
 
         {/* Full load list */}
         <details style={{ ...S.card, cursor: "pointer" }}>
