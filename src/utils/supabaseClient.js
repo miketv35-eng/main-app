@@ -411,5 +411,3 @@ export async function getDepartmentSicknessRate(weeksBack = 6, totalOperators = 
         trend
     };
 }
-
-export { supabase };

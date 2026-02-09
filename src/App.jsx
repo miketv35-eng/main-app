@@ -1407,6 +1407,11 @@ function Landing({ shifts, onSelect, machineStatus, loadingData, staffingPlan, s
           </div>
         </div>
 
+        {/* Department Sickness Card */}
+        <div style={{ maxWidth: 700, margin: "16px auto" }}>
+          <DepartmentSicknessCard totalOperators={40} />
+        </div>
+
         {/* Staffing Plan Upload */}
         <div style={{ ...S.card, maxWidth: 700, margin: "20px auto 0", padding: 16, borderColor: "rgba(16,185,129,0.15)", background: "rgba(16,185,129,0.04)" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
