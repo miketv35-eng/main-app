@@ -219,3 +219,115 @@ export async function getAllRotationHistory(weeksBack = 12) {
     return data || [];
 }
 
+/**
+ * Get aggregated work statistics for a specific operator
+ * @param {string} operatorId - Operator ID
+ * @param {string} startDate - Optional start date (YYYY-MM-DD)
+ * @param {string} endDate - Optional end date (YYYY-MM-DD)
+ * @returns {Promise<Array>} Array of { area_id, weeks_worked, first_worked, last_worked }
+ */
+export async function getOperatorWorkStats(operatorId, startDate = null, endDate = null) {
+    let query = supabase
+        .from('rotation_history')
+        .select('area_id, week_date, hours_worked')
+        .eq('operator_id', operatorId);
+
+    if (startDate) {
+        query = query.gte('week_date', startDate);
+    }
+    if (endDate) {
+        query = query.lte('week_date', endDate);
+    }
+
+    const { data, error } = await query.order('week_date', { ascending: false });
+
+    if (error) {
+        console.error('Error fetching operator work stats:', error);
+        return [];
+    }
+
+    // Aggregate by area
+    const areaStats = {};
+    data.forEach(record => {
+        if (!areaStats[record.area_id]) {
+            areaStats[record.area_id] = {
+                area_id: record.area_id,
+                weeks_worked: 0,
+                total_hours: 0,
+                first_worked: record.week_date,
+                last_worked: record.week_date
+            };
+        }
+
+        areaStats[record.area_id].weeks_worked++;
+        areaStats[record.area_id].total_hours += record.hours_worked || 0;
+
+        if (record.week_date < areaStats[record.area_id].first_worked) {
+            areaStats[record.area_id].first_worked = record.week_date;
+        }
+        if (record.week_date > areaStats[record.area_id].last_worked) {
+            areaStats[record.area_id].last_worked = record.week_date;
+        }
+    });
+
+    return Object.values(areaStats).sort((a, b) => b.weeks_worked - a.weeks_worked);
+}
+
+/**
+ * Get aggregated work statistics for all operators
+ * @param {string} startDate - Optional start date (YYYY-MM-DD)
+ * @param {string} endDate - Optional end date (YYYY-MM-DD)
+ * @returns {Promise<Object>} Object keyed by operator_id with stats
+ */
+export async function getAllOperatorStats(startDate = null, endDate = null) {
+    let query = supabase
+        .from('rotation_history')
+        .select('operator_id, area_id, week_date, hours_worked');
+
+    if (startDate) {
+        query = query.gte('week_date', startDate);
+    }
+    if (endDate) {
+        query = query.lte('week_date', endDate);
+    }
+
+    const { data, error } = await query.order('week_date', { ascending: false });
+
+    if (error) {
+        console.error('Error fetching all operator stats:', error);
+        return {};
+    }
+
+    // Aggregate by operator and area
+    const operatorStats = {};
+    data.forEach(record => {
+        if (!operatorStats[record.operator_id]) {
+            operatorStats[record.operator_id] = {};
+        }
+
+        if (!operatorStats[record.operator_id][record.area_id]) {
+            operatorStats[record.operator_id][record.area_id] = {
+                area_id: record.area_id,
+                weeks_worked: 0,
+                total_hours: 0,
+                first_worked: record.week_date,
+                last_worked: record.week_date
+            };
+        }
+
+        const areaStats = operatorStats[record.operator_id][record.area_id];
+        areaStats.weeks_worked++;
+        areaStats.total_hours += record.hours_worked || 0;
+
+        if (record.week_date < areaStats.first_worked) {
+            areaStats.first_worked = record.week_date;
+        }
+        if (record.week_date > areaStats.last_worked) {
+            areaStats.last_worked = record.week_date;
+        }
+    });
+
+    return operatorStats;
+}
+
+export { supabase };

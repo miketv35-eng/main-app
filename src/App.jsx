@@ -387,7 +387,7 @@ function getRotationScore(opId, areaId, rotationHistory) {
  * @param {Array} ops - Operators list
  */
 async function saveWeekRotationHistory(weekDate, shiftId, assignments, ops) {
-  const { saveRotationHistory } = await import('./utils/supabaseClient.js');
+  const { saveRotas, loadRotas, saveRotationHistory, getRotationHistory, getAllRotationHistory, getOperatorWorkStats } = await import('./utils/supabaseClient.js');
 
   // Calculate hours per assignment (assuming 40-hour week)
   const hoursPerWeek = 40;
@@ -1365,7 +1365,7 @@ function ShiftWorkspace({ shift, onBack, areas, setAreas, lines, machineStatus, 
   const tabs = [{ id: "rota", l: "Rota" }, { id: "handover", l: "🔄 Handover" }, { id: "staffing", l: "👥 Staffing" }, { id: "lines", l: "Lines" }, { id: "loading", l: "Loading" }, { id: "settings", l: "⚙️ Settings" }];
   const [settingsTab, setSettingsTab] = useState("operators");
   const [showHelp, setShowHelp] = useState(false);
-  const settingsTabs = [{ id: "operators", l: "👷 Operators" }, { id: "skap", l: "📋 SKAP" }, { id: "training", l: "📊 Training" }, { id: "holidays", l: "🏖️ Holidays" }];
+  const settingsTabs = [{ id: "operators", l: "👷 Operators" }, { id: "skap", l: "📋 SKAP" }, { id: "training", l: "📊 Training" }, { id: "history", l: "📈 Work History" }, { id: "holidays", l: "🏖️ Holidays" }];
 
   if (!loaded) return <div style={{ fontFamily: "'Satoshi','Roboto',sans-serif", background: "var(--bg-body)", color: "var(--text-primary)", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>Loading {shift.name}...</div>;
 
@@ -1403,6 +1403,7 @@ function ShiftWorkspace({ shift, onBack, areas, setAreas, lines, machineStatus, 
           {settingsTab === "operators" && <Ops {...{ ops, setOps, team, training }} />}
           {settingsTab === "skap" && <Skap />}
           {settingsTab === "training" && <Training {...{ ops, training, setTraining, areas, rotationHistory }} />}
+          {settingsTab === "history" && <OperatorWorkHistory {...{ ops, areas }} />}
           {settingsTab === "holidays" && <Hols {...{ hols, setHols, ops }} />}
         </div>}
       </main>
@@ -2964,6 +2965,118 @@ function Skap() {
       )
     })}
   </div>);
+}
+
+/* ═══════════════════════════════════════════════════
+   OPERATOR WORK HISTORY
+   ═══════════════════════════════════════════════════ */
+function OperatorWorkHistory({ ops, areas }) {
+  const [selectedOp, setSelectedOp] = useState(ops[0]?.id || "");
+  const [stats, setStats] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [dateRange, setDateRange] = useState({ start: "", end: "" });
+
+  useEffect(() => {
+    if (!selectedOp) return;
+
+    setLoading(true);
+    getOperatorWorkStats(selectedOp, dateRange.start || null, dateRange.end || null)
+      .then(data => {
+        setStats(data);
+        setLoading(false);
+      })
+      .catch(err => {
+        console.error('Error loading work stats:', err);
+        setLoading(false);
+      });
+  }, [selectedOp, dateRange]);
+
+  const operator = ops.find(o => o.id === selectedOp);
+  const totalWeeks = stats.reduce((sum, s) => sum + s.weeks_worked, 0);
+
+  return (
+    <div>
+      <h2 style={{ margin: "0 0 20px", fontSize: 20, fontWeight: 800 }}>📊 Operator Work History</h2>
+
+      {/* Filters */}
+      <div style={{ ...S.card, marginBottom: 20 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14 }}>
+          <div>
+            <label style={S.lbl}>Operator</label>
+            <select value={selectedOp} onChange={e => setSelectedOp(e.target.value)} style={{ ...S.inp, appearance: "auto" }}>
+              {ops.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label style={S.lbl}>Start Date (Optional)</label>
+            <input type="date" value={dateRange.start} onChange={e => setDateRange(p => ({ ...p, start: e.target.value }))} style={S.inp} />
+          </div>
+          <div>
+            <label style={S.lbl}>End Date (Optional)</label>
+            <input type="date" value={dateRange.end} onChange={e => setDateRange(p => ({ ...p, end: e.target.value }))} style={S.inp} />
+          </div>
+        </div>
+      </div>
+
+      {/* Summary Card */}
+      {operator && (
+        <div style={{ ...S.card, marginBottom: 20, background: "linear-gradient(135deg, rgba(59,130,246,0.1) 0%, rgba(16,185,129,0.1) 100%)", borderLeft: "4px solid #3B82F6" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div>
+              <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>{operator.name}</div>
+              <div style={{ fontSize: 12, color: "#64748B" }}>
+                {dateRange.start || dateRange.end ? `Filtered: ${dateRange.start || 'All'} to ${dateRange.end || 'All'}` : 'All Time'}
+              </div>
+            </div>
+            <div style={{ textAlign: "right" }}>
+              <div style={{ fontSize: 28, fontWeight: 800, color: "#3B82F6" }}>{totalWeeks}</div>
+              <div style={{ fontSize: 11, color: "#64748B", fontWeight: 600 }}>Total Weeks Worked</div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Statistics Table */}
+      {loading ? (
+        <div style={{ ...S.card, textAlign: "center", padding: 40, color: "#64748B" }}>
+          Loading work history...
+        </div>
+      ) : stats.length === 0 ? (
+        <div style={{ ...S.card, textAlign: "center", padding: 40, color: "#64748B" }}>
+          No work history found for this operator in the selected date range.
+        </div>
+      ) : (
+        <div style={{ display: "grid", gap: 8 }}>
+          {stats.map((stat, i) => {
+            const area = areas.find(a => a.id === stat.area_id);
+            const percentage = totalWeeks > 0 ? ((stat.weeks_worked / totalWeeks) * 100).toFixed(1) : 0;
+
+            return (
+              <div key={i} style={{ ...S.card, padding: 16 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>{area?.name || stat.area_id}</div>
+                    <div style={{ fontSize: 11, color: "#64748B", fontFamily: "'JetBrains Mono', monospace" }}>
+                      First: {stat.first_worked} • Last: {stat.last_worked}
+                    </div>
+                  </div>
+                  <div style={{ textAlign: "right", marginLeft: 20 }}>
+                    <div style={{ fontSize: 24, fontWeight: 800, color: "#10B981" }}>{stat.weeks_worked}</div>
+                    <div style={{ fontSize: 10, color: "#64748B", fontWeight: 600 }}>weeks ({percentage}%)</div>
+                  </div>
+                </div>
+
+                {/* Progress bar */}
+                <div style={{ height: 6, borderRadius: 3, background: "rgba(255,255,255,0.06)", overflow: "hidden" }}>
+                  <div style={{ height: "100%", borderRadius: 3, background: "#10B981", width: `${percentage}%`, transition: "width 0.3s" }} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
 }
 
 /* ═══════════════════════════════════════════════════
