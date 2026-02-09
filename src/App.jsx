@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useMemo, useEffect } from "react";
 import * as XLSX from "xlsx";
-import { saveSicknessRecords, getDepartmentSicknessRate, saveStaffingPlan } from './utils/supabaseClient';
+import { saveSicknessRecords, getDepartmentSicknessRate, saveStaffingPlan, getShiftSicknessOverview, updateOperatorStartDate } from './utils/supabaseClient';
 
 const API_URL = "/api/claude";
 
@@ -1777,7 +1777,7 @@ function ShiftWorkspace({ shift, onBack, areas, setAreas, lines, machineStatus, 
   const tabs = [{ id: "rota", l: "Rota" }, { id: "handover", l: "🔄 Handover" }, { id: "staffing", l: "👥 Staffing" }, { id: "lines", l: "Lines" }, { id: "loading", l: "Loading" }, { id: "settings", l: "⚙️ Settings" }];
   const [settingsTab, setSettingsTab] = useState("operators");
   const [showHelp, setShowHelp] = useState(false);
-  const settingsTabs = [{ id: "operators", l: "👷 Operators" }, { id: "skap", l: "📋 SKAP" }, { id: "training", l: "📊 Training" }, { id: "history", l: "📈 Work History" }, { id: "holidays", l: "🏖️ Holidays" }];
+  const settingsTabs = [{ id: "operators", l: "👷 Operators" }, { id: "skap", l: "📋 SKAP" }, { id: "training", l: "📊 Training" }, { id: "history", l: "📈 Work History" }, { id: "holidays", l: "🏖️ Holidays" }, { id: "sickness", l: "🏥 Sickness" }];
 
   if (!loaded) return <div style={{ fontFamily: "'Satoshi','Roboto',sans-serif", background: "var(--bg-body)", color: "var(--text-primary)", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>Loading {shift.name}...</div>;
 
@@ -1819,6 +1819,7 @@ function ShiftWorkspace({ shift, onBack, areas, setAreas, lines, machineStatus, 
           {settingsTab === "training" && <Training {...{ ops, training, setTraining, areas, rotationHistory }} />}
           {settingsTab === "history" && <OperatorWorkHistory {...{ ops, areas }} />}
           {settingsTab === "holidays" && <Hols {...{ hols, setHols, ops }} />}
+          {settingsTab === "sickness" && <OperatorSicknessTable ops={ops} shiftId={shift.id} team={team} />}
         </div>}
       </main>
       {showConfirmModal && (
@@ -3581,5 +3582,142 @@ function Hols({ hols, setHols, ops }) {
         </div>
       })}</div>}
   </div>);
+}
+
+/* ═══════════════════════════════════════════════════
+   OPERATOR SICKNESS TABLE
+   ═══════════════════════════════════════════════════ */
+function OperatorSicknessTable({ ops, shiftId, team }) {
+  const [sicknessData, setSicknessData] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState('all');
+  const [editingStartDate, setEditingStartDate] = useState(null);
+  const [startDateValue, setStartDateValue] = useState('');
+
+  useEffect(() => {
+    loadSicknessData();
+  }, [ops, shiftId]);
+
+  const loadSicknessData = async () => {
+    setLoading(true);
+    try {
+      const data = await getShiftSicknessOverview(shiftId, ops);
+      setSicknessData(data);
+    } catch (err) {
+      console.error('Error loading sickness data:', err);
+    }
+    setLoading(false);
+  };
+
+  const handleStartDateSave = async (opId) => {
+    if (!startDateValue) return;
+    await updateOperatorStartDate(opId, startDateValue);
+    setEditingStartDate(null);
+    setStartDateValue('');
+    loadSicknessData();
+  };
+
+  const statusColors = {
+    green: { bg: 'rgba(16,185,129,0.12)', color: '#10B981', label: 'GOOD' },
+    amber: { bg: 'rgba(245,158,11,0.12)', color: '#F59E0B', label: 'MONITOR' },
+    red: { bg: 'rgba(239,68,68,0.12)', color: '#EF4444', label: 'INVESTIGATE' }
+  };
+
+  const filtered = filter === 'all' ? sicknessData : sicknessData.filter(d => d.status === filter);
+  const counts = {
+    red: sicknessData.filter(d => d.status === 'red').length,
+    amber: sicknessData.filter(d => d.status === 'amber').length,
+    green: sicknessData.filter(d => d.status === 'green').length
+  };
+
+  if (loading) return <div style={{ ...S.card, textAlign: 'center', padding: 40, color: '#64748B' }}>Loading sickness data...</div>;
+
+  return (
+    <div>
+      <div style={{ ...S.card, marginBottom: 16, padding: 20 }}>
+        <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>🏥 Operator Sickness Tracking</h3>
+        <p style={{ fontSize: 12, color: '#64748B', margin: '0 0 16px' }}>5-year rolling absence rate · 2.5% investigation threshold</p>
+
+        {/* Summary cards */}
+        <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
+          <div style={{ flex: 1, minWidth: 100, textAlign: 'center', padding: 12, borderRadius: 8, background: 'rgba(239,68,68,0.08)', cursor: 'pointer', border: filter === 'red' ? '2px solid #EF4444' : '2px solid transparent' }} onClick={() => setFilter(f => f === 'red' ? 'all' : 'red')}>
+            <div style={{ fontSize: 24, fontWeight: 800, color: '#EF4444' }}>{counts.red}</div>
+            <div style={{ fontSize: 10, fontWeight: 600, color: '#EF4444' }}>INVESTIGATE</div>
+            <div style={{ fontSize: 9, color: '#64748B' }}>≥ 4%</div>
+          </div>
+          <div style={{ flex: 1, minWidth: 100, textAlign: 'center', padding: 12, borderRadius: 8, background: 'rgba(245,158,11,0.08)', cursor: 'pointer', border: filter === 'amber' ? '2px solid #F59E0B' : '2px solid transparent' }} onClick={() => setFilter(f => f === 'amber' ? 'all' : 'amber')}>
+            <div style={{ fontSize: 24, fontWeight: 800, color: '#F59E0B' }}>{counts.amber}</div>
+            <div style={{ fontSize: 10, fontWeight: 600, color: '#F59E0B' }}>MONITOR</div>
+            <div style={{ fontSize: 9, color: '#64748B' }}>2.5% – 4%</div>
+          </div>
+          <div style={{ flex: 1, minWidth: 100, textAlign: 'center', padding: 12, borderRadius: 8, background: 'rgba(16,185,129,0.08)', cursor: 'pointer', border: filter === 'green' ? '2px solid #10B981' : '2px solid transparent' }} onClick={() => setFilter(f => f === 'green' ? 'all' : 'green')}>
+            <div style={{ fontSize: 24, fontWeight: 800, color: '#10B981' }}>{counts.green}</div>
+            <div style={{ fontSize: 10, fontWeight: 600, color: '#10B981' }}>GOOD</div>
+            <div style={{ fontSize: 9, color: '#64748B' }}>{'< 2.5%'}</div>
+          </div>
+        </div>
+
+        {filter !== 'all' && (
+          <button onClick={() => setFilter('all')} style={{ ...S.bg, fontSize: 11, padding: '4px 12px', marginBottom: 12 }}>
+            Show All ({sicknessData.length})
+          </button>
+        )}
+      </div>
+
+      {/* Operator table */}
+      <div style={{ ...S.card, padding: 0, overflow: 'hidden' }}>
+        {/* Table header */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px 70px 80px 70px 100px', padding: '10px 16px', background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid var(--border-color)', fontSize: 10, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+          <div>Operator</div>
+          <div style={{ textAlign: 'center' }}>Tenure</div>
+          <div style={{ textAlign: 'center' }}>Sick Days</div>
+          <div style={{ textAlign: 'center' }}>Work Days</div>
+          <div style={{ textAlign: 'center' }}>Rate</div>
+          <div style={{ textAlign: 'center' }}>Status</div>
+        </div>
+
+        {/* Table rows */}
+        {filtered.length === 0 ? (
+          <div style={{ padding: 30, textAlign: 'center', color: '#64748B', fontSize: 13 }}>
+            {filter !== 'all' ? `No operators with ${filter} status` : 'No sickness data available. Upload staffing plans to populate.'}
+          </div>
+        ) : (
+          filtered.map((op, i) => {
+            const sc = statusColors[op.status];
+            return (
+              <div key={op.id || i} style={{ display: 'grid', gridTemplateColumns: '1fr 80px 70px 80px 70px 100px', padding: '10px 16px', borderBottom: '1px solid rgba(255,255,255,0.04)', alignItems: 'center', background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.02)' }}>
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: 13 }}>{op.name}</div>
+                  {editingStartDate === op.id ? (
+                    <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
+                      <input type="date" value={startDateValue} onChange={e => setStartDateValue(e.target.value)} style={{ ...S.inp, padding: '2px 6px', fontSize: 10, width: 130 }} />
+                      <button onClick={() => handleStartDateSave(op.id)} style={{ ...S.bp, padding: '2px 8px', fontSize: 10 }}>Save</button>
+                      <button onClick={() => setEditingStartDate(null)} style={{ ...S.bg, padding: '2px 8px', fontSize: 10 }}>✕</button>
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: 10, color: '#64748B', cursor: 'pointer' }} onClick={() => { setEditingStartDate(op.id); setStartDateValue(''); }}>
+                      {ops.find(o => o.id === op.id)?.start_date ? `Started: ${ops.find(o => o.id === op.id).start_date}` : '+ Set start date'}
+                    </div>
+                  )}
+                </div>
+                <div style={{ textAlign: 'center', fontSize: 12, fontWeight: 600, fontFamily: "'JetBrains Mono', monospace" }}>{op.tenureYears}y</div>
+                <div style={{ textAlign: 'center', fontSize: 12, fontWeight: 700, fontFamily: "'JetBrains Mono', monospace", color: op.sickDays > 0 ? '#EF4444' : '#64748B' }}>{op.sickDays}</div>
+                <div style={{ textAlign: 'center', fontSize: 12, fontFamily: "'JetBrains Mono', monospace", color: '#64748B' }}>{op.totalWorkDays.toLocaleString()}</div>
+                <div style={{ textAlign: 'center', fontSize: 13, fontWeight: 800, fontFamily: "'JetBrains Mono', monospace", color: sc.color }}>{op.rate}%</div>
+                <div style={{ textAlign: 'center' }}>
+                  <span style={{ display: 'inline-block', padding: '3px 10px', borderRadius: 6, fontSize: 9, fontWeight: 700, background: sc.bg, color: sc.color, letterSpacing: '0.5px' }}>{sc.label}</span>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {/* Refresh button */}
+      <div style={{ marginTop: 12, textAlign: 'right' }}>
+        <button onClick={loadSicknessData} style={{ ...S.bg, fontSize: 11, padding: '6px 14px' }}>🔄 Refresh Data</button>
+      </div>
+    </div>
+  );
 }
 

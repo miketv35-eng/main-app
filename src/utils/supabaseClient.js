@@ -411,3 +411,100 @@ export async function getDepartmentSicknessRate(weeksBack = 6, totalOperators = 
         trend
     };
 }
+
+/**
+ * Update an operator's start date
+ * @param {string} operatorId - Operator ID
+ * @param {string} startDate - Start date (YYYY-MM-DD)
+ */
+export async function updateOperatorStartDate(operatorId, startDate) {
+    const { error } = await supabase
+        .from('operators')
+        .update({ start_date: startDate })
+        .eq('id', operatorId);
+    if (error) console.error('Error updating operator start date:', error);
+    return { error };
+}
+
+/**
+ * Get individual operator sickness rate (tenure-adjusted, up to 5 years)
+ * @param {string} operatorId - e.g. "a_john_doe"
+ * @param {string|null} startDate - Operator hire date (YYYY-MM-DD), null = use all data
+ * @param {number} maxYears - Rolling window cap (default 5)
+ * @returns {Promise<Object>} { rate, sickDays, totalWorkDays, tenureYears, status }
+ */
+export async function getOperatorSicknessRate(operatorId, startDate = null, maxYears = 5) {
+    const now = new Date();
+
+    // Determine the earliest date to query
+    let earliest;
+    if (startDate) {
+        const hire = new Date(startDate);
+        const fiveYearsAgo = new Date();
+        fiveYearsAgo.setFullYear(fiveYearsAgo.getFullYear() - maxYears);
+        earliest = hire > fiveYearsAgo ? hire : fiveYearsAgo;
+    } else {
+        earliest = new Date();
+        earliest.setFullYear(earliest.getFullYear() - maxYears);
+    }
+
+    const earliestStr = earliest.toISOString().split('T')[0];
+
+    const { data, error } = await supabase
+        .from('sickness_records')
+        .select('days_sick, week_date')
+        .eq('operator_id', operatorId)
+        .gte('week_date', earliestStr)
+        .order('week_date', { ascending: false });
+
+    if (error) {
+        console.error('Error fetching operator sickness rate:', error);
+        return { rate: '0.0', sickDays: 0, totalWorkDays: 0, tenureYears: 0, status: 'green' };
+    }
+
+    const records = data || [];
+    const sickDays = records.reduce((sum, r) => sum + (r.days_sick || 0), 0);
+
+    // Calculate tenure in years
+    const tenureMs = now - earliest;
+    const tenureYears = parseFloat((tenureMs / (365.25 * 24 * 60 * 60 * 1000)).toFixed(1));
+
+    // Total possible work days (approx 5 days/week)
+    const totalWeeks = tenureYears * 52;
+    const totalWorkDays = Math.round(totalWeeks * 5);
+
+    const rate = totalWorkDays > 0 ? ((sickDays / totalWorkDays) * 100).toFixed(2) : '0.00';
+    const rateNum = parseFloat(rate);
+
+    let status = 'green';
+    if (rateNum >= 4) status = 'red';
+    else if (rateNum >= 2.5) status = 'amber';
+
+    return { rate, sickDays, totalWorkDays, tenureYears, status };
+}
+
+/**
+ * Get sickness overview for all operators in a specific shift
+ * @param {string} shiftId - Shift ID (e.g. "a")
+ * @param {Array} operators - Array of operator objects with { id, name, start_date }
+ * @param {number} maxYears - Rolling window (default 5)
+ * @returns {Promise<Array>} Sorted array of operator sickness stats
+ */
+export async function getShiftSicknessOverview(shiftId, operators = [], maxYears = 5) {
+    const results = [];
+
+    for (const op of operators) {
+        const operatorId = `${shiftId}_${op.name.toLowerCase().replace(/\s+/g, '_')}`;
+        const stats = await getOperatorSicknessRate(operatorId, op.start_date || null, maxYears);
+        results.push({
+            id: op.id,
+            name: op.name,
+            operatorId,
+            ...stats
+        });
+    }
+
+    // Sort by rate descending (highest risk first)
+    results.sort((a, b) => parseFloat(b.rate) - parseFloat(a.rate));
+    return results;
+}
