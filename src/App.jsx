@@ -1213,13 +1213,13 @@ function Landing({ shifts, onSelect, machineStatus, loadingData, staffingPlan, s
         const fteRows = XLSX.utils.sheet_to_json(fteSheet, { header: 1, defval: "" });
         log.push(`FTE tab: ${fteRows.length} rows`);
 
-        // Extract dates from first row
-        const dateRow = fteRows[0] || [];
+        // Extract dates from row 2 (index 1), columns 2-15
+        const dateRow = fteRows[1] || [];
         const dates = []; const dateCols = [];
-        dateRow.forEach((v, i) => {
-          const d = tryDate(v);
-          if (d) { dates.push(d); dateCols.push(i) }
-        });
+        for (let c = 2; c < 16; c++) {
+          const d = tryDate(dateRow[c]);
+          if (d) { dates.push(d); dateCols.push(c) }
+        }
         if (dates.length === 0) {
           allLogs.push(`  ✕ No dates found in ${file.name}`);
           continue;
@@ -1229,17 +1229,17 @@ function Landing({ shifts, onSelect, machineStatus, loadingData, staffingPlan, s
         // Parse operators by shift
         const fte = { A: [], B: [], C: [], D: [] };
         let currentShift = null;
-        for (let r = 1; r < fteRows.length; r++) {
+        for (let r = 2; r < fteRows.length; r++) {
           const row = fteRows[r];
           const colA = String(row[0] || "").trim();
           const colB = String(row[1] || "").trim();
-          // Detect shift header
-          if (/^SHIFT\s+[ABCD]$/i.test(colA)) {
-            currentShift = colA.match(/[ABCD]/i)[0].toUpperCase();
-            continue;
-          }
+          // Detect shift header (e.g. "A SHIFT" or "SHIFT A")
+          const shiftMatch = colA.match(/^([ABCD])\s*SHIFT/i) || colA.match(/^SHIFT\s+([ABCD])/i);
+          if (shiftMatch) { currentShift = shiftMatch[1].toUpperCase(); continue }
+          // Stop at ASRS or non-shift sections
+          if (/^(ASRS|FLC|TOTAL)/i.test(colA)) { currentShift = null; continue }
           if (!currentShift) continue;
-          const name = colA;
+          const name = colA.replace(/\s*-\s*LT$/, "").trim();
           if (!name || /^(TOTAL|$)/i.test(name)) continue;
           const position = colB.toUpperCase().replace(/\s/g, "");
           const days = {};
@@ -1259,11 +1259,11 @@ function Landing({ shifts, onSelect, machineStatus, loadingData, staffingPlan, s
           const agRows = XLSX.utils.sheet_to_json(agSheet, { header: 1, defval: "" });
           const agDateRow = agRows[0] || [];
           const agDates = []; const agDateCols = [];
-          agDateRow.forEach((v, i) => {
-            const d = tryDate(v);
-            if (d) { agDates.push(d); agDateCols.push(i) }
-          });
-          for (let r = 1; r < agRows.length; r++) {
+          for (let c = 2; c < 16; c++) {
+            const d = tryDate(agDateRow[c]);
+            if (d) { agDates.push(d); agDateCols.push(c) }
+          }
+          for (let r = 3; r < agRows.length; r++) {
             const row = agRows[r];
             const name = String(row[0] || "").trim();
             const type = String(row[1] || "").trim();
