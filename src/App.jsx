@@ -3711,13 +3711,13 @@ function OperatorSicknessTable({ ops, shiftId, team }) {
                     </div>
                   ) : (
                     <div style={{ fontSize: 10, color: '#64748B', cursor: 'pointer' }} onClick={() => { setEditingStartDate(op.id); setStartDateValue(''); }}>
-                      {(() => { const sd = savedDates[op.id] || ops.find(o => o.id === op.id)?.start_date; return sd ? `Started: ${sd}` : '+ Set start date'; })()}
+                      {(() => { const sd = savedDates[op.id] || op.startDate; return sd ? `Started: ${sd}` : '+ Set start date'; })()}
                     </div>
                   )}
                 </div>
-                <div style={{ textAlign: 'center', fontSize: 12, fontWeight: 600, fontFamily: "'JetBrains Mono', monospace" }}>{op.tenureYears}y</div>
+                <div style={{ textAlign: 'center', fontSize: 12, fontWeight: 600, fontFamily: "'JetBrains Mono', monospace", color: op.hasStartDate ? 'inherit' : '#64748B' }}>{op.hasStartDate ? `${op.tenureYears}y` : '—'}</div>
                 <div style={{ textAlign: 'center', fontSize: 12, fontWeight: 700, fontFamily: "'JetBrains Mono', monospace", color: op.sickDays > 0 ? '#EF4444' : '#64748B' }}>{op.sickDays}</div>
-                <div style={{ textAlign: 'center', fontSize: 12, fontFamily: "'JetBrains Mono', monospace", color: '#64748B' }}>{op.totalWorkDays.toLocaleString()}</div>
+                <div style={{ textAlign: 'center', fontSize: 12, fontFamily: "'JetBrains Mono', monospace", color: '#64748B' }}>{op.hasStartDate ? op.totalWorkDays.toLocaleString() : '—'}</div>
                 <div style={{ textAlign: 'center', fontSize: 13, fontWeight: 800, fontFamily: "'JetBrains Mono', monospace", color: sc.color }}>{op.rate}%</div>
                 <div style={{ textAlign: 'center' }}>
                   <span style={{ display: 'inline-block', padding: '3px 10px', borderRadius: 6, fontSize: 9, fontWeight: 700, background: sc.bg, color: sc.color, letterSpacing: '0.5px' }}>{sc.label}</span>

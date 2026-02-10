@@ -490,7 +490,7 @@ export async function getOperatorSicknessRate(operatorId, startDate = null, maxY
     if (rateNum >= 4) status = 'red';
     else if (rateNum >= 2.5) status = 'amber';
 
-    return { rate, sickDays, totalWorkDays, tenureYears, status };
+    return { rate, sickDays, totalWorkDays, tenureYears, status, hasStartDate: !!startDate };
 }
 
 /**
@@ -530,6 +530,7 @@ export async function getShiftSicknessOverview(shiftId, operators = [], maxYears
             id: operatorId,
             name: op.name,
             operatorId,
+            startDate,
             ...stats
         });
     }
