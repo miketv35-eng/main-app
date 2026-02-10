@@ -3622,7 +3622,9 @@ function OperatorSicknessTable({ ops, shiftId, team }) {
 
   const handleStartDateSave = async (opId) => {
     if (!startDateValue) return;
-    await updateOperatorStartDate(opId, startDateValue);
+    const op = sicknessData.find(d => d.id === opId || d.operatorId === opId);
+    const name = op?.name || '';
+    await updateOperatorStartDate(opId, startDateValue, name, shiftId);
     setEditingStartDate(null);
     setStartDateValue('');
     loadSicknessData();

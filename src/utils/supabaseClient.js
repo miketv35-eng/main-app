@@ -414,14 +414,19 @@ export async function getDepartmentSicknessRate(weeksBack = 6, totalOperators = 
 
 /**
  * Update an operator's start date
- * @param {string} operatorId - Operator ID
+ * @param {string} operatorId - Operator ID (e.g. "a_john_doe")
  * @param {string} startDate - Start date (YYYY-MM-DD)
+ * @param {string} name - Operator name (for upsert)
+ * @param {string} shiftId - Shift ID (for upsert)
  */
-export async function updateOperatorStartDate(operatorId, startDate) {
+export async function updateOperatorStartDate(operatorId, startDate, name = '', shiftId = '') {
+    const record = { id: operatorId, start_date: startDate };
+    if (name) record.name = name;
+    if (shiftId) record.shift_id = shiftId;
+
     const { error } = await supabase
         .from('operators')
-        .update({ start_date: startDate })
-        .eq('id', operatorId);
+        .upsert(record, { onConflict: 'id' });
     if (error) console.error('Error updating operator start date:', error);
     return { error };
 }
