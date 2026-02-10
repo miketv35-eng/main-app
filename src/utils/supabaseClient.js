@@ -348,30 +348,6 @@ export async function saveSicknessRecords(records) {
 }
 
 /**
- * Save staffing plan to database
- * @param {string} weekDate - Week commencing date (YYYY-MM-DD)
- * @param {Object} plan - Staffing plan data { week, dates, fte, agency }
- * @returns {Promise<Object>} Result with data and error
- */
-export async function saveStaffingPlan(weekDate, plan) {
-    const record = {
-        week_date: weekDate,
-        plan_data: plan,
-        updated_at: new Date().toISOString()
-    };
-
-    const { data, error } = await supabase
-        .from('staffing_plans')
-        .upsert(record, { onConflict: 'week_date' });
-
-    if (error) {
-        console.error('Error saving staffing plan:', error);
-    }
-
-    return { data, error };
-}
-
-/**
  * Get sickness statistics for a date range
  * @param {string} startDate - Start date (YYYY-MM-DD)
  * @param {string} endDate - Optional end date (YYYY-MM-DD)
