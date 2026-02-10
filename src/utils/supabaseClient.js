@@ -455,19 +455,24 @@ export async function getOperatorSicknessRate(operatorId, startDate = null, maxY
 
     const earliestStr = earliest.toISOString().split('T')[0];
 
-    const { data, error } = await supabase
-        .from('sickness_records')
-        .select('days_sick, week_date')
-        .eq('operator_id', operatorId)
-        .gte('week_date', earliestStr)
-        .order('week_date', { ascending: false });
+    let records = [];
+    try {
+        const { data, error } = await supabase
+            .from('sickness_records')
+            .select('days_sick, week_date')
+            .eq('operator_id', operatorId)
+            .gte('week_date', earliestStr)
+            .order('week_date', { ascending: false });
 
-    if (error) {
-        console.error('Error fetching operator sickness rate:', error);
-        return { rate: '0.0', sickDays: 0, totalWorkDays: 0, tenureYears: 0, status: 'green' };
+        if (error) {
+            console.error('Sickness query error for', operatorId, ':', error.message);
+        } else {
+            records = data || [];
+        }
+    } catch (err) {
+        console.error('Sickness query exception for', operatorId, ':', err);
     }
 
-    const records = data || [];
     const sickDays = records.reduce((sum, r) => sum + (r.days_sick || 0), 0);
 
     // Calculate tenure in years
@@ -490,19 +495,39 @@ export async function getOperatorSicknessRate(operatorId, startDate = null, maxY
 
 /**
  * Get sickness overview for all operators in a specific shift
+ * Fetches start_dates from the DB rather than relying on passed-in data
  * @param {string} shiftId - Shift ID (e.g. "a")
- * @param {Array} operators - Array of operator objects with { id, name, start_date }
+ * @param {Array} operators - Array of operator objects with { id, name }
  * @param {number} maxYears - Rolling window (default 5)
  * @returns {Promise<Array>} Sorted array of operator sickness stats
  */
 export async function getShiftSicknessOverview(shiftId, operators = [], maxYears = 5) {
+    // Fetch all operator start_dates from the DB for this shift
+    let dbOperators = [];
+    try {
+        const { data } = await supabase
+            .from('operators')
+            .select('id, start_date')
+            .eq('shift_id', shiftId);
+        dbOperators = data || [];
+    } catch (err) {
+        console.error('Error fetching operators:', err);
+    }
+
+    // Create a lookup map: operator_id -> start_date
+    const startDateMap = {};
+    dbOperators.forEach(op => {
+        if (op.start_date) startDateMap[op.id] = op.start_date;
+    });
+
     const results = [];
 
     for (const op of operators) {
         const operatorId = `${shiftId}_${op.name.toLowerCase().replace(/\s+/g, '_')}`;
-        const stats = await getOperatorSicknessRate(operatorId, op.start_date || null, maxYears);
+        const startDate = startDateMap[operatorId] || op.start_date || null;
+        const stats = await getOperatorSicknessRate(operatorId, startDate, maxYears);
         results.push({
-            id: op.id,
+            id: operatorId,
             name: op.name,
             operatorId,
             ...stats
