@@ -3605,17 +3605,27 @@ function OperatorSicknessTable({ ops, shiftId, team }) {
   const [editingStartDate, setEditingStartDate] = useState(null);
   const [startDateValue, setStartDateValue] = useState('');
   const [savedDates, setSavedDates] = useState({});
+  const [debugLog, setDebugLog] = useState([]);
 
   useEffect(() => {
     loadSicknessData();
   }, [ops, shiftId]);
 
+  const addDebug = (msg) => setDebugLog(prev => [...prev.slice(-10), `${new Date().toLocaleTimeString()}: ${msg}`]);
+
   const loadSicknessData = async () => {
     setLoading(true);
+    addDebug(`Loading... shiftId=${shiftId}, ops=${ops?.length}`);
     try {
       const data = await getShiftSicknessOverview(shiftId, ops);
       setSicknessData(data);
+      const withDates = data.filter(d => d.startDate);
+      addDebug(`Loaded ${data.length} operators. ${withDates.length} have startDate. IDs: ${data.slice(0, 3).map(d => d.id).join(', ')}`);
+      if (withDates.length > 0) {
+        addDebug(`Start dates found: ${withDates.map(d => `${d.name}=${d.startDate}`).join(', ')}`);
+      }
     } catch (err) {
+      addDebug(`ERROR loading: ${err.message}`);
       console.error('Error loading sickness data:', err);
     }
     setLoading(false);
@@ -3625,7 +3635,13 @@ function OperatorSicknessTable({ ops, shiftId, team }) {
     if (!startDateValue) return;
     const op = sicknessData.find(d => d.id === opId || d.operatorId === opId);
     const name = op?.name || '';
-    await updateOperatorStartDate(opId, startDateValue, name, shiftId);
+    addDebug(`Saving: id=${opId}, date=${startDateValue}, name=${name}, shift=${shiftId}`);
+    const result = await updateOperatorStartDate(opId, startDateValue, name, shiftId);
+    if (result.error) {
+      addDebug(`SAVE ERROR: ${result.error.message}`);
+    } else {
+      addDebug(`Saved OK for ${name}`);
+    }
     setSavedDates(prev => ({ ...prev, [opId]: startDateValue }));
     setEditingStartDate(null);
     setStartDateValue('');
@@ -3732,6 +3748,14 @@ function OperatorSicknessTable({ ops, shiftId, team }) {
       <div style={{ marginTop: 12, textAlign: 'right' }}>
         <button onClick={loadSicknessData} style={{ ...S.bg, fontSize: 11, padding: '6px 14px' }}>🔄 Refresh Data</button>
       </div>
+
+      {/* Debug Log - temporary */}
+      {debugLog.length > 0 && (
+        <div style={{ marginTop: 12, padding: 10, background: 'rgba(0,0,0,0.3)', borderRadius: 8, fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: '#94A3B8' }}>
+          <div style={{ fontWeight: 700, marginBottom: 4, color: '#F59E0B' }}>🔍 Debug Log</div>
+          {debugLog.map((msg, i) => <div key={i} style={{ padding: '2px 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>{msg}</div>)}
+        </div>
+      )}
     </div>
   );
 }
