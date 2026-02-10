@@ -3604,6 +3604,7 @@ function OperatorSicknessTable({ ops, shiftId, team }) {
   const [filter, setFilter] = useState('all');
   const [editingStartDate, setEditingStartDate] = useState(null);
   const [startDateValue, setStartDateValue] = useState('');
+  const [savedDates, setSavedDates] = useState({});
 
   useEffect(() => {
     loadSicknessData();
@@ -3625,6 +3626,7 @@ function OperatorSicknessTable({ ops, shiftId, team }) {
     const op = sicknessData.find(d => d.id === opId || d.operatorId === opId);
     const name = op?.name || '';
     await updateOperatorStartDate(opId, startDateValue, name, shiftId);
+    setSavedDates(prev => ({ ...prev, [opId]: startDateValue }));
     setEditingStartDate(null);
     setStartDateValue('');
     loadSicknessData();
@@ -3709,7 +3711,7 @@ function OperatorSicknessTable({ ops, shiftId, team }) {
                     </div>
                   ) : (
                     <div style={{ fontSize: 10, color: '#64748B', cursor: 'pointer' }} onClick={() => { setEditingStartDate(op.id); setStartDateValue(''); }}>
-                      {ops.find(o => o.id === op.id)?.start_date ? `Started: ${ops.find(o => o.id === op.id).start_date}` : '+ Set start date'}
+                      {(() => { const sd = savedDates[op.id] || ops.find(o => o.id === op.id)?.start_date; return sd ? `Started: ${sd}` : '+ Set start date'; })()}
                     </div>
                   )}
                 </div>
