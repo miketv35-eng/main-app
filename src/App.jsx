@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo, useEffect } from "react";
+import React, { useState, useCallback, useMemo, useEffect, Fragment } from "react";
 import * as XLSX from "xlsx";
 import { saveSicknessRecords, getDepartmentSicknessRate, saveStaffingPlan, getShiftSicknessOverview, updateOperatorStartDate } from './utils/supabaseClient';
 
@@ -1695,6 +1695,7 @@ function CanLineConfirmModal({ machinesDown, onConfirm, onCancel }) {
 }
 
 function ShiftWorkspace({ shift, onBack, areas, setAreas, lines, machineStatus, setMachineStatus, planProducts, setPlanProducts, loadingData, setLoadingData, staffingPlan, setStaffingPlan, theme, setTheme }) {
+  console.log("ShiftWorkspace mounting", shift.id);
   const [tab, setTab] = useState("rota");
   const [loaded, setLoaded] = useState(false);
 
@@ -1715,7 +1716,9 @@ function ShiftWorkspace({ shift, onBack, areas, setAreas, lines, machineStatus, 
   // Load shift data on mount
   useEffect(() => {
     (async () => {
+      console.log("ShiftWorkspace effect start");
       const o = await sGet(`${sk}:ops`);
+      console.log("ShiftWorkspace ops loaded", o?.length);
       setOps(o || (SHIFT_OPS[shift.id] || []));
       const h = await sGet(`${sk}:hols`); if (h) setHols(h);
       const t = await sGet(`${sk}:training`); if (t) setTraining(t);
@@ -1723,6 +1726,7 @@ function ShiftWorkspace({ shift, onBack, areas, setAreas, lines, machineStatus, 
       const ts = await sGet(`${sk}:teamSettings`);
       if (ts) setTeamSettings({ ...ts, anchor: shift.anchor, flm: shift.flm });
       setLoaded(true);
+      console.log("ShiftWorkspace setLoaded true");
     })();
   }, [sk, shift.id]);
 
@@ -1917,7 +1921,7 @@ function Rota({ week, setWeek, result, ops, areas, lines, team, hols, wd, gen, m
       <div style={{ display: "grid", gridTemplateColumns: "120px repeat(7,1fr)", gap: 3, fontSize: 9 }}>
         <div style={{ fontWeight: 700, color: "#64748B" }}>Area</div>
         {wd.map((d, i) => <div key={i} style={{ textAlign: "center", fontWeight: 700, color: "#64748B" }}>{DAYS[i]}</div>)}
-        {areas.map(area => <React.Fragment key={area.id}>
+        {areas.map(area => <Fragment key={area.id}>
           <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
             <span style={{ width: 6, height: 6, borderRadius: 2, background: AREA_TYPE_COLORS[area.type], flexShrink: 0 }} />
             <span style={{ fontWeight: 600, color: "#CBD5E1", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{area.name}</span>
@@ -1937,7 +1941,7 @@ function Rota({ week, setWeek, result, ops, areas, lines, team, hols, wd, gen, m
               {result && <div style={{ fontSize: 7, color: assigned >= info.need ? "#10B981" : "#EF4444", fontWeight: 700 }}>{assigned}/{info.need}</div>}
             </div>;
           })}
-        </React.Fragment>)}
+        </Fragment>)}
       </div>
     </div>
     {w.length > 0 && <div style={{ ...S.card, background: "rgba(239,68,68,0.08)", borderColor: "rgba(239,68,68,0.2)", marginBottom: 12, padding: 10 }}>
@@ -1961,7 +1965,7 @@ function AreaGrid({ g, wd, areas, ops, areaInfo, anchor }) {
     <div style={{ background: "rgba(255,255,255,0.04)", padding: "6px 10px", fontWeight: 700, fontSize: 11, color: "#64748B" }}>Area</div>
     {wd.map((d, i) => <div key={i} style={{ background: fmt(d) === fmt(new Date()) ? "rgba(245,158,11,0.08)" : "rgba(255,255,255,0.04)", padding: "6px 4px", textAlign: "center", fontWeight: 700, fontSize: 11, color: fmt(d) === fmt(new Date()) ? "#F59E0B" : "#64748B" }}>{DAYS[i]} {d.getDate()}</div>)}
     {areas.map((area, ai) => {
-      const bg = ai % 2 ? "rgba(255,255,255,0.015)" : "rgba(255,255,255,0.02)"; const tc = AREA_TYPE_COLORS_G[area.type] || "#64748B"; return <React.Fragment key={area.id}>
+      const bg = ai % 2 ? "rgba(255,255,255,0.015)" : "rgba(255,255,255,0.02)"; const tc = AREA_TYPE_COLORS_G[area.type] || "#64748B"; return <Fragment key={area.id}>
         <div style={{ background: bg, padding: "6px 10px", borderLeft: `3px solid ${tc}` }}>
           <div style={{ fontWeight: 700, fontSize: 12 }}>{area.name}</div>
           <div style={{ fontSize: 8, fontWeight: 600, color: tc, textTransform: "uppercase" }}>{area.type === "line" ? "Production" : area.type === "loading" ? "Loading" : area.type === "office" ? "Office" : "Fixed"}</div>
@@ -1981,7 +1985,7 @@ function AreaGrid({ g, wd, areas, ops, areaInfo, anchor }) {
             {here.map(({ op, st: sh, tc: teamCol, isAgency: isAg }) => <div key={op?.id} style={{ fontSize: 9, fontWeight: 600, color: isAg ? "#F59E0B" : "#CBD5E1", background: `${teamCol}15`, borderRadius: 3, padding: "2px 5px", display: "flex", alignItems: "center", gap: 2, borderLeft: `2px solid ${teamCol}` }}>{sh === "day" ? <Ic.Sun /> : <Ic.Moon />}<span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{op?.name?.split(" ").map((n, i) => i === 0 ? n[0] + "." : n).join(" ")}{isAg ? " ⓐ" : ""}</span></div>)}
           </div>
         })}
-      </React.Fragment>
+      </Fragment>
     })}
   </div></div>);
 }
@@ -1991,7 +1995,7 @@ function OpGrid({ g, wd, areas, ops, team, hols, anchor }) {
     <div style={{ background: "rgba(255,255,255,0.04)", padding: "6px 10px", fontWeight: 700, fontSize: 10, color: "#64748B" }}>Operator</div>
     {wd.map((d, i) => { const s = stype(anchor, d); return <div key={i} style={{ background: s === "off" ? "rgba(255,255,255,0.02)" : s === "day" ? "rgba(245,158,11,0.06)" : "rgba(99,102,241,0.06)", padding: "6px 3px", textAlign: "center", fontWeight: 700, fontSize: 10, color: s === "off" ? "#334155" : s === "day" ? "#F59E0B" : "#818CF8" }}>{DAYS[i]} {d.getDate()}<div style={{ fontSize: 8, opacity: 0.7 }}>{s === "day" ? "DAY" : s === "night" ? "NIGHT" : "OFF"}</div></div> })}
     {ops.map((op, oi) => {
-      const bg = oi % 2 ? "rgba(255,255,255,0.015)" : "rgba(255,255,255,0.02)"; const opColor = op.isAgency ? "#F59E0B" : team.color; return <React.Fragment key={op.id}>
+      const bg = oi % 2 ? "rgba(255,255,255,0.015)" : "rgba(255,255,255,0.02)"; const opColor = op.isAgency ? "#F59E0B" : team.color; return <Fragment key={op.id}>
         <div style={{ background: bg, padding: "6px 10px", fontWeight: 600, fontSize: 11, display: "flex", alignItems: "center", gap: 4 }}>{op.name}{op.isAgency && <span style={{ fontSize: 7, fontWeight: 700, padding: "1px 4px", borderRadius: 2, background: "rgba(245,158,11,0.15)", color: "#F59E0B" }}>AG</span>}</div>
         {wd.map((d, di) => {
           const ds = fmt(d), s = stype(anchor, d), info = g[ds]?.[op.id], area = info ? areas.find(a => a.id === info.area) : null, hol = hols?.some(h => h.opId === op.id && ds >= h.start && ds <= h.end);
@@ -2000,7 +2004,7 @@ function OpGrid({ g, wd, areas, ops, team, hols, anchor }) {
             {s === "off" ? <span style={{ fontSize: 9, color: "#334155" }}>OFF</span> : isOff ? <span style={{ fontSize: 9, color: "#EF4444", fontWeight: 700, background: "rgba(239,68,68,0.1)", borderRadius: 3, padding: "2px 6px" }}>{reason || "OFF"}</span> : hol ? <span style={{ fontSize: 9, color: "#EF4444", fontWeight: 700, background: "rgba(239,68,68,0.1)", borderRadius: 3, padding: "2px 6px" }}>HOL</span> : area ? <span style={{ fontSize: 9, fontWeight: 700, background: `${opColor}18`, color: opColor, borderRadius: 3, padding: "2px 5px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{area.name}</span> : <span style={{ fontSize: 9, color: "#475569" }}>—</span>}
           </div>
         })}
-      </React.Fragment>
+      </Fragment>
     })}
   </div>);
 }
@@ -2938,7 +2942,7 @@ Return ONLY a JSON array: [{"machine":"MAC1","days":{"2026-02-06":{"running":tru
       <div style={{ display: "grid", gridTemplateColumns: "80px repeat(7,1fr)", gap: 4 }}>
         <div style={{ fontWeight: 700, fontSize: 10, color: "#64748B" }}>Machine</div>
         {wd.map((d, i) => <div key={i} style={{ textAlign: "center", fontWeight: 700, fontSize: 10, color: "#64748B" }}>{DAYS[i]} {d.getDate()}</div>)}
-        {line.machines.map(m => <React.Fragment key={m.id}>
+        {line.machines.map(m => <Fragment key={m.id}>
           <div style={{ fontWeight: 700, fontSize: 12, color: "#E2E8F0", display: "flex", alignItems: "center" }}>{m.id}</div>
           {wd.map((d, i) => {
             const ds = fmt(d), up = machineStatus[ds]?.[m.id] !== false, pr = planProducts[ds]?.[m.id] || ""; return <div key={i} style={{ display: "flex", flexDirection: "column", gap: 1 }}>
@@ -2946,7 +2950,7 @@ Return ONLY a JSON array: [{"machine":"MAC1","days":{"2026-02-06":{"running":tru
               {pr && up && <div style={{ fontSize: 7, color: "#64748B", textAlign: "center", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={pr}>{pr}</div>}
             </div>
           })}
-        </React.Fragment>)}
+        </Fragment>)}
       </div>
     </div>)}
   </div>);
