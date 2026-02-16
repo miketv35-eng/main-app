@@ -10,15 +10,16 @@ const API_URL = "/api/claude";
 const useIsMobile = () => {
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   useEffect(() => {
-    const h = () => setIsMobile(window.innerWidth < 768);
-    window.addEventListener("resize", h);
-    return () => window.removeEventListener("resize", h);
+
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
   }, []);
   return isMobile;
-};
+}
 
 const CYCLE = ["day", "day", "night", "night", "off", "off", "off", "off"];
-const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const LOADS_PER_OP = 15;
 const uid = () => Math.random().toString(36).slice(2, 9);
 const fmt = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -1795,6 +1796,7 @@ function ShiftWorkspace({ shift, onBack, areas, setAreas, lines, machineStatus, 
   const settingsTabs = [{ id: "operators", l: "👷 Operators" }, { id: "skap", l: "📋 SKAP" }, { id: "training", l: "📊 Training" }, { id: "history", l: "📈 Work History" }, { id: "holidays", l: "🏖️ Holidays" }, { id: "sickness", l: "🏥 Sickness" }];
 
   if (!loaded) return <div style={{ fontFamily: "'Satoshi','Roboto',sans-serif", background: "var(--bg-body)", color: "var(--text-primary)", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>Loading {shift.name}...</div>;
+
 
   return (
     <div style={{ fontFamily: "'Satoshi','Roboto',sans-serif", background: "var(--bg-body)", color: "var(--text-primary)", minHeight: "100vh" }}>
