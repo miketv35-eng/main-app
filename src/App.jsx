@@ -3256,8 +3256,8 @@ function Ops({ ops, setOps, team, training }) {
     </div>}
 
     <div style={{ display: "grid", gap: 4 }}>
-      {ops.filter(o => !o.isAgency).length > 0 && <div style={{ fontSize: 11, fontWeight: 700, color: "#64748B", textTransform: "uppercase", marginBottom: 4, marginTop: 8 }}>FTE Operators</div>}
-      {ops.filter(o => !o.isAgency).map(op => {
+
+      {ops.map(op => {
         const prog = getSkapProgress(op.id, training);
         const lvl = prog.filter(p => p.pct === 100).length;
         const mod = SKAP_MODULES[lvl] || SKAP_MODULES[0];
@@ -3322,57 +3322,7 @@ function Ops({ ops, setOps, team, training }) {
         </div>);
       })}
 
-      {/* Agency Workers */}
-      {ops.filter(o => o.isAgency).length > 0 && <>
-        <div style={{ fontSize: 11, fontWeight: 700, color: "#F59E0B", textTransform: "uppercase", marginBottom: 4, marginTop: 16 }}>Agency Workers</div>
-        {ops.filter(o => o.isAgency).map(op => {
-          const quals = op.quals || [];
-          const isOpen = detailId === op.id;
-          return (<div key={op.id}>
-            <div style={{ ...S.card, padding: "10px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", borderLeft: "3px solid #F59E0B", borderBottomLeftRadius: isOpen ? 0 : undefined, borderBottomRightRadius: isOpen ? 0 : undefined, marginBottom: isOpen ? 0 : undefined }}
-              onClick={() => setDetailId(isOpen ? null : op.id)}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <div style={{ width: 32, height: 32, borderRadius: 7, background: "rgba(245,158,11,0.2)", color: "#F59E0B", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 12 }}>{op.name.split(" ").map(n => n[0]).join("")}</div>
-                <div>
-                  <div style={{ fontWeight: 600, fontSize: 13, display: "flex", alignItems: "center", gap: 6 }}>{op.name} <span style={{ fontSize: 8, fontWeight: 700, padding: "1px 6px", borderRadius: 3, background: "rgba(245,158,11,0.15)", color: "#F59E0B" }}>AGENCY</span></div>
-                  <div style={{ fontSize: 10, color: "#64748B" }}>{quals.length ? `${quals.length}/${QUAL_AREAS.length} areas` : "No qualifications — defaults to Tents"}{op.prefArea ? ` · ⭐ ${QUAL_AREAS.find(a => a.id === op.prefArea)?.short || ""}` : ""}</div>
-                </div>
-              </div>
-              <div style={{ display: "flex", gap: 3, alignItems: "center", flexWrap: "wrap", maxWidth: 260, justifyContent: "flex-end" }}>
-                {quals.length > 0 ? QUAL_AREAS.filter(a => quals.includes(a.id)).map(a =>
-                  <span key={a.id} style={{ fontSize: 8, fontWeight: 700, padding: "1px 5px", borderRadius: 3, background: `${a.color}18`, color: a.color }}>{a.short}</span>
-                ) : <span style={{ fontSize: 9, color: "#475569" }}>Click to set areas</span>}
-              </div>
-            </div>
-            {isOpen && <div style={{ ...S.card, borderTop: "none", borderTopLeftRadius: 0, borderTopRightRadius: 0, padding: 12, background: "rgba(245,158,11,0.03)", borderColor: "rgba(245,158,11,0.2)" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                <div style={{ fontWeight: 700, fontSize: 12, color: "#F59E0B" }}>Area Qualifications</div>
-                <div style={{ display: "flex", gap: 4 }}>
-                  <button onClick={() => selectAll(op.id)} style={{ ...S.bg, fontSize: 9, padding: "2px 8px" }}>Select All</button>
-                  <button onClick={() => clearAll(op.id)} style={{ ...S.bg, fontSize: 9, padding: "2px 8px" }}>Clear</button>
-                </div>
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 3 }}>
-                {QUAL_AREAS.map(a => {
-                  const has = quals.includes(a.id);
-                  return <button key={a.id} onClick={() => toggleQual(op.id, a.id)} style={{ padding: "6px 4px", borderRadius: 5, border: "1px solid", cursor: "pointer", fontFamily: "inherit", fontSize: 9, fontWeight: 700, textAlign: "center", background: has ? `${a.color}18` : "rgba(255,255,255,0.03)", borderColor: has ? `${a.color}44` : "rgba(255,255,255,0.08)", color: has ? a.color : "#475569" }}>
-                    {a.short}<br /><span style={{ fontSize: 7, fontWeight: 500 }}>{a.name}</span>
-                  </button>;
-                })}
-              </div>
-              <div style={{ marginTop: 10, padding: "8px 0", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <label style={{ fontSize: 11, fontWeight: 700, color: "#F59E0B", whiteSpace: "nowrap" }}>⭐ Preferred Area</label>
-                  <select value={op.prefArea || ""} onChange={e => setPref(op.id, e.target.value)} style={{ ...S.inp, padding: "4px 8px", fontSize: 11, appearance: "auto", flex: 1, maxWidth: 200 }}>
-                    <option value="">None</option>
-                    {QUAL_AREAS.filter(a => quals.includes(a.id)).map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-                  </select>
-                </div>
-              </div>
-            </div>}
-          </div>);
-        })}
-      </>}
+
     </div>
   </div>);
 }
@@ -3656,8 +3606,7 @@ function OperatorSicknessTable({ ops, shiftId, team }) {
   };
 
   const filtered = filter === 'all' ? sicknessData : sicknessData.filter(d => d.status === filter);
-  const fte = filtered.filter(op => !op.isAgency);
-  const agency = filtered.filter(op => op.isAgency);
+
 
   const counts = {
     red: sicknessData.filter(d => d.status === 'red').length,
@@ -3742,8 +3691,7 @@ function OperatorSicknessTable({ ops, shiftId, team }) {
         )}
       </div>
 
-      {fte.length > 0 && renderTable(fte, "FTE Operators", team.color)}
-      {agency.length > 0 && renderTable(agency, "Agency Workers", "#F59E0B")}
+      {filtered.length > 0 && renderTable(filtered, "", "")}
 
       {filtered.length === 0 && (
         <div style={{ ...S.card, textAlign: 'center', padding: 40, color: '#64748B' }}>
