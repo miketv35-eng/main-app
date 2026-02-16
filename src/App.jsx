@@ -3620,10 +3620,7 @@ function OperatorSicknessTable({ ops, shiftId, team }) {
       const data = await getShiftSicknessOverview(shiftId, ops);
       setSicknessData(data);
       const withDates = data.filter(d => d.startDate);
-      addDebug(`Loaded ${data.length} operators. ${withDates.length} have startDate. IDs: ${data.slice(0, 3).map(d => d.id).join(', ')}`);
-      if (withDates.length > 0) {
-        addDebug(`Start dates found: ${withDates.map(d => `${d.name}=${d.startDate}`).join(', ')}`);
-      }
+      addDebug(`Loaded ${data.length} operators. ${withDates.length} have startDate.`);
     } catch (err) {
       addDebug(`ERROR loading: ${err.message}`);
       console.error('Error loading sickness data:', err);
@@ -3655,6 +3652,9 @@ function OperatorSicknessTable({ ops, shiftId, team }) {
   };
 
   const filtered = filter === 'all' ? sicknessData : sicknessData.filter(d => d.status === filter);
+  const fte = filtered.filter(op => !op.isAgency);
+  const agency = filtered.filter(op => op.isAgency);
+
   const counts = {
     red: sicknessData.filter(d => d.status === 'red').length,
     amber: sicknessData.filter(d => d.status === 'amber').length,
@@ -3662,6 +3662,49 @@ function OperatorSicknessTable({ ops, shiftId, team }) {
   };
 
   if (loading) return <div style={{ ...S.card, textAlign: 'center', padding: 40, color: '#64748B' }}>Loading sickness data...</div>;
+
+  const renderTable = (operators, title, titleColor) => (
+    <div style={{ ...S.card, padding: 0, overflow: 'hidden', marginBottom: 16, borderLeft: titleColor ? `3px solid ${titleColor}` : undefined }}>
+      {title && <div style={{ padding: '10px 16px', background: 'rgba(255,255,255,0.05)', borderBottom: '1px solid var(--border-color)', fontWeight: 700, fontSize: 11, color: titleColor || '#94A3B8', textTransform: 'uppercase' }}>{title}</div>}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px 70px 80px 70px 100px', padding: '10px 16px', background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid var(--border-color)', fontSize: 10, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+        <div>Operator</div>
+        <div style={{ textAlign: 'center' }}>Tenure</div>
+        <div style={{ textAlign: 'center' }}>Sick Days</div>
+        <div style={{ textAlign: 'center' }}>Work Days</div>
+        <div style={{ textAlign: 'center' }}>Rate</div>
+        <div style={{ textAlign: 'center' }}>Status</div>
+      </div>
+
+      {operators.map((op, i) => {
+        const sc = statusColors[op.status];
+        return (
+          <div key={op.id || i} style={{ display: 'grid', gridTemplateColumns: '1fr 80px 70px 80px 70px 100px', padding: '10px 16px', borderBottom: '1px solid rgba(255,255,255,0.04)', alignItems: 'center', background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.02)' }}>
+            <div>
+              <div style={{ fontWeight: 600, fontSize: 13 }}>{op.name}</div>
+              {editingStartDate === op.id ? (
+                <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
+                  <input type="date" value={startDateValue} onChange={e => setStartDateValue(e.target.value)} style={{ ...S.inp, padding: '2px 6px', fontSize: 10, width: 130 }} />
+                  <button onClick={() => handleStartDateSave(op.id)} style={{ ...S.bp, padding: '2px 8px', fontSize: 10 }}>Save</button>
+                  <button onClick={() => setEditingStartDate(null)} style={{ ...S.bg, padding: '2px 8px', fontSize: 10 }}>✕</button>
+                </div>
+              ) : (
+                <div style={{ fontSize: 10, color: '#64748B', cursor: 'pointer' }} onClick={() => { setEditingStartDate(op.id); setStartDateValue(''); }}>
+                  {(() => { const sd = savedDates[op.id] || op.startDate; return sd ? `Started: ${sd}` : '+ Set start date'; })()}
+                </div>
+              )}
+            </div>
+            <div style={{ textAlign: 'center', fontSize: 12, fontWeight: 600, fontFamily: "'JetBrains Mono', monospace", color: op.hasStartDate ? 'inherit' : '#64748B' }}>{op.hasStartDate ? `${op.tenureYears}y` : '—'}</div>
+            <div style={{ textAlign: 'center', fontSize: 12, fontWeight: 700, fontFamily: "'JetBrains Mono', monospace", color: op.sickDays > 0 ? '#EF4444' : '#64748B' }}>{op.sickDays}</div>
+            <div style={{ textAlign: 'center', fontSize: 12, fontFamily: "'JetBrains Mono', monospace", color: '#64748B' }}>{op.hasStartDate ? op.totalWorkDays.toLocaleString() : '—'}</div>
+            <div style={{ textAlign: 'center', fontSize: 13, fontWeight: 800, fontFamily: "'JetBrains Mono', monospace", color: sc.color }}>{op.rate}%</div>
+            <div style={{ textAlign: 'center' }}>
+              <span style={{ display: 'inline-block', padding: '3px 10px', borderRadius: 6, fontSize: 9, fontWeight: 700, background: sc.bg, color: sc.color, letterSpacing: '0.5px' }}>{sc.label}</span>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
 
   return (
     <div>
@@ -3695,54 +3738,14 @@ function OperatorSicknessTable({ ops, shiftId, team }) {
         )}
       </div>
 
-      {/* Operator table */}
-      <div style={{ ...S.card, padding: 0, overflow: 'hidden' }}>
-        {/* Table header */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px 70px 80px 70px 100px', padding: '10px 16px', background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid var(--border-color)', fontSize: 10, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-          <div>Operator</div>
-          <div style={{ textAlign: 'center' }}>Tenure</div>
-          <div style={{ textAlign: 'center' }}>Sick Days</div>
-          <div style={{ textAlign: 'center' }}>Work Days</div>
-          <div style={{ textAlign: 'center' }}>Rate</div>
-          <div style={{ textAlign: 'center' }}>Status</div>
-        </div>
+      {fte.length > 0 && renderTable(fte, "FTE Operators", team.color)}
+      {agency.length > 0 && renderTable(agency, "Agency Workers", "#F59E0B")}
 
-        {/* Table rows */}
-        {filtered.length === 0 ? (
-          <div style={{ padding: 30, textAlign: 'center', color: '#64748B', fontSize: 13 }}>
-            {filter !== 'all' ? `No operators with ${filter} status` : 'No sickness data available. Upload staffing plans to populate.'}
-          </div>
-        ) : (
-          filtered.map((op, i) => {
-            const sc = statusColors[op.status];
-            return (
-              <div key={op.id || i} style={{ display: 'grid', gridTemplateColumns: '1fr 80px 70px 80px 70px 100px', padding: '10px 16px', borderBottom: '1px solid rgba(255,255,255,0.04)', alignItems: 'center', background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.02)' }}>
-                <div>
-                  <div style={{ fontWeight: 600, fontSize: 13 }}>{op.name}</div>
-                  {editingStartDate === op.id ? (
-                    <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
-                      <input type="date" value={startDateValue} onChange={e => setStartDateValue(e.target.value)} style={{ ...S.inp, padding: '2px 6px', fontSize: 10, width: 130 }} />
-                      <button onClick={() => handleStartDateSave(op.id)} style={{ ...S.bp, padding: '2px 8px', fontSize: 10 }}>Save</button>
-                      <button onClick={() => setEditingStartDate(null)} style={{ ...S.bg, padding: '2px 8px', fontSize: 10 }}>✕</button>
-                    </div>
-                  ) : (
-                    <div style={{ fontSize: 10, color: '#64748B', cursor: 'pointer' }} onClick={() => { setEditingStartDate(op.id); setStartDateValue(''); }}>
-                      {(() => { const sd = savedDates[op.id] || op.startDate; return sd ? `Started: ${sd}` : '+ Set start date'; })()}
-                    </div>
-                  )}
-                </div>
-                <div style={{ textAlign: 'center', fontSize: 12, fontWeight: 600, fontFamily: "'JetBrains Mono', monospace", color: op.hasStartDate ? 'inherit' : '#64748B' }}>{op.hasStartDate ? `${op.tenureYears}y` : '—'}</div>
-                <div style={{ textAlign: 'center', fontSize: 12, fontWeight: 700, fontFamily: "'JetBrains Mono', monospace", color: op.sickDays > 0 ? '#EF4444' : '#64748B' }}>{op.sickDays}</div>
-                <div style={{ textAlign: 'center', fontSize: 12, fontFamily: "'JetBrains Mono', monospace", color: '#64748B' }}>{op.hasStartDate ? op.totalWorkDays.toLocaleString() : '—'}</div>
-                <div style={{ textAlign: 'center', fontSize: 13, fontWeight: 800, fontFamily: "'JetBrains Mono', monospace", color: sc.color }}>{op.rate}%</div>
-                <div style={{ textAlign: 'center' }}>
-                  <span style={{ display: 'inline-block', padding: '3px 10px', borderRadius: 6, fontSize: 9, fontWeight: 700, background: sc.bg, color: sc.color, letterSpacing: '0.5px' }}>{sc.label}</span>
-                </div>
-              </div>
-            );
-          })
-        )}
-      </div>
+      {filtered.length === 0 && (
+        <div style={{ ...S.card, textAlign: 'center', padding: 40, color: '#64748B' }}>
+          {filter !== 'all' ? `No operators with ${filter} status` : 'No sickness data available. Upload staffing plans to populate.'}
+        </div>
+      )}
 
       {/* Refresh button */}
       <div style={{ marginTop: 12, textAlign: 'right' }}>

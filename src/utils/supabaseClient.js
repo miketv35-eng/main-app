@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { calculateTenure } from "./dateUtils.js";
 
 const SUPA_URL = "https://nuxntitedixiijtxzuni.supabase.co";
 const SUPA_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im51eG50aXRlZGl4aWlqdHh6dW5pIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAzOTQzMjQsImV4cCI6MjA4NTk3MDMyNH0.Wpzpo2_KE07S7xe7SEQQsaRTff6YAAJeiMDz1JRJaak";
@@ -420,15 +421,30 @@ export async function getDepartmentSicknessRate(weeksBack = 6, totalOperators = 
  * @param {string} shiftId - Shift ID (for upsert)
  */
 export async function updateOperatorStartDate(operatorId, startDate, name = '', shiftId = '') {
-    const record = { id: operatorId, start_date: startDate };
-    if (name) record.name = name;
-    if (shiftId) record.shift_id = shiftId;
+    // First, ensure operator exists in operators table
+    if (name && shiftId) {
+        const { error: opError } = await supabase
+            .from('operators')
+            .upsert({ id: operatorId, name, shift_id: shiftId, start_date: startDate }, { onConflict: 'id' });
 
-    const { error } = await supabase
-        .from('operators')
-        .upsert(record, { onConflict: 'id' });
-    if (error) console.error('Error updating operator start date:', error);
-    return { error };
+        if (opError) {
+            console.error('Error upserting operator with start date:', opError);
+            return { error: opError };
+        }
+    } else {
+        // If we only have ID, try to update just the start_date
+        const { error } = await supabase
+            .from('operators')
+            .update({ start_date: startDate })
+            .eq('id', operatorId);
+
+        if (error) {
+            console.error('Error updating operator start date:', error);
+            return { error };
+        }
+    }
+
+    return { error: null };
 }
 
 /**
@@ -495,43 +511,58 @@ export async function getOperatorSicknessRate(operatorId, startDate = null, maxY
 
 /**
  * Get sickness overview for all operators in a specific shift
- * Fetches start_dates from the DB rather than relying on passed-in data
+ * Uses start_dates from the operators table
  * @param {string} shiftId - Shift ID (e.g. "a")
- * @param {Array} operators - Array of operator objects with { id, name }
+ * @param {Array} operators - Array of operator objects with { id, name, start_date }
  * @param {number} maxYears - Rolling window (default 5)
  * @returns {Promise<Array>} Sorted array of operator sickness stats
  */
 export async function getShiftSicknessOverview(shiftId, operators = [], maxYears = 5) {
-    // Fetch all operator start_dates from the DB for this shift
+    const results = [];
+
+    // Fetch start dates from operators table
+    const operatorIds = operators.map(op => op.id || `${shiftId}_${op.name.toLowerCase().replace(/\s+/g, '_')}`);
     let dbOperators = [];
     try {
         const { data } = await supabase
             .from('operators')
             .select('id, start_date')
-            .eq('shift_id', shiftId);
+            .in('id', operatorIds);
         dbOperators = data || [];
     } catch (err) {
-        console.error('Error fetching operators:', err);
+        console.error('Error fetching operator start dates:', err);
     }
 
-    // Create a lookup map: operator_id -> start_date
+    // Create a lookup map: id -> start_date
     const startDateMap = {};
     dbOperators.forEach(op => {
         if (op.start_date) startDateMap[op.id] = op.start_date;
     });
 
-    const results = [];
-
     for (const op of operators) {
-        const operatorId = `${shiftId}_${op.name.toLowerCase().replace(/\s+/g, '_')}`;
-        const startDate = startDateMap[operatorId] || op.start_date || null;
+        // Construct the full operator ID if not present (legacy logic)
+        // If op.id is already the full ID (e.g. "a_john_doe"), use it.
+        // Otherwise try to construct it or assume op.id is correct.
+        // The codebase seems to use constructed IDs in some places.
+        // Let's stick to using op.id if available, or fallback to construction.
+        const operatorId = op.id || `${shiftId}_${op.name.toLowerCase().replace(/\s+/g, '_')}`;
+
+        // Use start_date from the operator object OR from DB lookup
+        const startDate = op.start_date || startDateMap[operatorId] || null;
+
         const stats = await getOperatorSicknessRate(operatorId, startDate, maxYears);
+
+        // Calculate actual tenure for display (override windowed tenure from stats)
+        const actualTenure = calculateTenure(startDate);
+
         results.push({
             id: operatorId,
             name: op.name,
             operatorId,
             startDate,
-            ...stats
+            ...stats,
+            tenureYears: actualTenure || stats.tenureYears, // Use actual tenure if available
+            isAgency: op.isAgency // Preserve agency status
         });
     }
 

@@ -10,3 +10,11 @@ export const wl = d => { const s = ws(d), e = ad(s, 6); return `${s.toLocaleDate
 export const cd = (a, t) => { const dif = df(a, t); return Math.floor(dif % 8 + 8) % 8 };
 export const stype = (a, t) => { const i = cd(a, t); return CYCLE[i] };
 export const bstart = (a, d) => { const i = cd(a, d); return i < 4 ? ad(d, -i) : null };
+export const calculateTenure = (startDate) => {
+    if (!startDate) return 0;
+    const start = new Date(startDate);
+    const now = new Date();
+    const diffTime = Math.abs(now - start);
+    const diffYears = diffTime / (365.25 * 24 * 60 * 60 * 1000);
+    return parseFloat(diffYears.toFixed(1));
+};
